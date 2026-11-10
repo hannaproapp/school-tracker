@@ -164,6 +164,9 @@ async function runKid(kid, state, alertsSent) {
     save(`seen-${kid.id}`, [...new Set([...(seen || []), ...ids])]);
   }
 
+  // A newly enrolled Classroom-only student has no homework data until the first import.
+  if (kid.classroomOnly && !out.classroomAt) return out;
+
   // ---- morning plan email (first run of the day) ----
   const today = dayKey(new Date());
   if (out.lastDigest !== today && etHour() < 11) {
