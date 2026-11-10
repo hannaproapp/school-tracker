@@ -100,8 +100,32 @@ export async function fetchClassroom(kidId) {
         score: graded ? s.assignedGrade : null,
         pct: graded && cw.maxPoints ? Math.round((s.assignedGrade / cw.maxPoints) * 1000) / 10 : null,
         updated: s.updateTime || cw.updateTime,
+        category: cw.gradeCategory?.id || null,
+        courseId: course.id,
       });
     }
   }
-  return { courses: courses.map(c => c.name), items };
+  const overall = courses.map(c => ({ course: c.name, ...overallGrade(c, items.filter(i => i.courseId === c.id)) }))
+    .filter(c => c.grade != null);
+  return { courses: courses.map(c => c.name), items, overall };
+}
+
+// Mirrors Classroom's "overall grade": total points, or weighted categories
+// (weights renormalized over categories that have graded work).
+function overallGrade(course, items) {
+  const gs = course.gradebookSettings || {};
+  const graded = items.filter(i => i.score != null && i.points > 0);
+  if (!graded.length || gs.calculationType === 'NO_GRADE') return { grade: null };
+  if (gs.calculationType === 'WEIGHTED_CATEGORIES' && gs.gradeCategories?.length) {
+    let wsum = 0, acc = 0;
+    for (const cat of gs.gradeCategories) {
+      const inCat = graded.filter(i => i.category === cat.id);
+      if (!inCat.length || !cat.weight) continue;
+      const pct = inCat.reduce((a, i) => a + i.score, 0) / inCat.reduce((a, i) => a + i.points, 0);
+      acc += pct * cat.weight; wsum += cat.weight;
+    }
+    if (wsum) return { grade: Math.round((acc / wsum) * 10000) / 100, method: 'weighted categories' };
+  }
+  const pts = graded.reduce((a, i) => a + i.score, 0), max = graded.reduce((a, i) => a + i.points, 0);
+  return { grade: Math.round((pts / max) * 10000) / 100, method: 'total points' };
 }

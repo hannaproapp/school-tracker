@@ -40,6 +40,7 @@ async function runKid(kid, state, alertsSent) {
     try {
       const cr = await fetchClassroom(kid.id);
       out.homework = cr.items;
+      out.classroomOverall = cr.overall;
       out.classroomAt = new Date().toISOString();
     } catch (e) { out.errors.push(`Google Classroom: ${e.message}`); }
   } else out.errors.push('Google Classroom not connected yet');
@@ -51,6 +52,14 @@ async function runKid(kid, state, alertsSent) {
     out.gradesAt = bb.at;
     if (Date.now() - new Date(bb.at) > 36 * 3600000) out.errors.push(`Blackbaud: grades not refreshed since ${new Date(bb.at).toLocaleString('en-US', { timeZone: 'America/New_York' })}. Check that ${kid.name} is still signed into Blackbaud in Chrome.`);
   } else out.errors.push(`Blackbaud: no grades received yet (daily Chrome check)`);
+
+  // Classes with no Blackbaud grade (teacher grades in Classroom) get Classroom's overall grade.
+  const key = n => String(n || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean).slice(0, 2).join(' ');
+  out.grades = [...(out.grades || [])];
+  for (const co of out.classroomOverall || prev.classroomOverall || []) {
+    const match = out.grades.find(g => key(g.course) === key(co.course));
+    if (match && match.grade == null) Object.assign(match, { grade: co.grade, letter: toLetter(co.grade), source: 'Classroom' });
+  }
 
   out.plan = buildPlan(out.homework || []);
   out.missing = (out.homework || []).filter(i => i.status === 'missing');

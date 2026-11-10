@@ -33,7 +33,7 @@ function kidSection(k, T) {
 
   <h3>Grade scorecard</h3>
   <table><tr><th>Class</th><th>Teacher</th><th>Grade</th><th></th></tr>
-  ${grades.length ? grades.map(g => `<tr><td>${esc(g.course)}</td><td>${esc(g.teacher)}</td>
+  ${grades.length ? grades.map(g => `<tr><td>${esc(g.course)}${g.source ? ' <span class="muted">(from Classroom)</span>' : ''}</td><td>${esc(g.teacher)}</td>
     <td class="g ${gradeClass(g.grade, T)}">${g.grade != null ? esc(g.grade) + '% <span class="muted">→ ' + Math.round(g.grade) + '</span>' : '—'}</td><td>${esc(g.letter || '')}</td></tr>`).join('')
     : '<tr><td colspan="4" class="muted">No grades pulled yet</td></tr>'}
   </table>
