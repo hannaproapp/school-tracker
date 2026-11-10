@@ -16,6 +16,9 @@ function kidSection(k, T) {
     .sort((a, b) => new Date(a.due) - new Date(b.due));
   const counts = hw.reduce((m, i) => (m[i.status] = (m[i.status] || 0) + 1, m), {});
   const grades = d.grades || [];
+  const noMarks = grades.length > 0 && grades.every(g => g.grade == null && !g.letter);
+  const waiting = !d.classroomAt && !hw.length;
+  const review = waiting && k.review;
   const belowA = grades.filter(g => g.grade != null && g.grade < T).length;
 
   return `<section id="${esc(k.id)}" class="kid">
@@ -24,14 +27,18 @@ function kidSection(k, T) {
   ${!k.connected ? `<div class="banner">Google Classroom isn't connected. <a class="btn" href="/connect/${esc(k.id)}">Connect ${esc(k.name)}'s Google account</a></div>` : ''}
   ${(d.errors || []).filter(e => !e.includes('not connected')).map(e => `<div class="banner err">${esc(e)}</div>`).join('')}
 
+  ${waiting && k.id === 'luke' ? `<h3>Luke’s upcoming homework</h3>
+  ${review ? `<p>Checked ${esc(fmt(review.at))} Eastern. Status is as of that check.</p><ul>${review.items.map(i => `<li><b>${esc(i.due)}</b> · ${esc(i.course)}: <a href="${esc(i.link)}">${esc(i.title)}</a> · ${esc(i.status)}</li>`).join('')}</ul>` : ''}
+  <p>For current status, open <a href="https://classroom.google.com/a/not-turned-in/all">Assigned</a> or <a href="https://classroom.google.com/a/missing/all">Missing</a> in Luke’s Google Classroom.</p>` : ''}
   <div class="tiles">
-    <div class="tile"><div class="n ${belowA ? 'badt' : 'okt'}">${belowA}</div><div>classes below an A</div></div>
-    <div class="tile"><div class="n ${counts.missing ? 'badt' : 'okt'}">${counts.missing || 0}</div><div>missing</div></div>
-    <div class="tile"><div class="n">${counts.todo || 0}</div><div>to do</div></div>
-    <div class="tile"><div class="n">${(counts.submitted || 0) + (counts.late || 0)}</div><div>turned in (14 days)</div></div>
+    <div class="tile"><div class="n ${belowA ? 'badt' : 'okt'}">${noMarks ? '—' : belowA}</div><div>classes below an A</div></div>
+    <div class="tile"><div class="n ${counts.missing ? 'badt' : 'okt'}">${waiting ? '—' : counts.missing || 0}</div><div>missing</div></div>
+    <div class="tile"><div class="n">${waiting ? '—' : counts.todo || 0}</div><div>to do</div></div>
+    <div class="tile"><div class="n">${waiting ? '—' : (counts.submitted || 0) + (counts.late || 0)}</div><div>turned in (14 days)</div></div>
   </div>
 
   <h3>Grade scorecard</h3>
+  ${noMarks ? `<p>Blackbaud synced ${grades.length} classes. Wheeler supplied no current marks for these classes.</p>` : ''}
   <table><tr><th>Class</th><th>Teacher</th><th>Current grade</th><th>Letter</th><th>${esc(d.reportTerm || '')} report card</th></tr>
   ${grades.length ? grades.map(g => `<tr><td>${esc(g.course)}${g.source ? ` <span class="muted">(${esc(g.source)})</span>` : ''}</td><td>${esc(g.teacher)}</td>
     <td class="g ${gradeClass(g.grade, T)}">${g.grade != null ? esc(g.grade) + '% <span class="muted">→ ' + Math.round(g.grade) + '</span>' : '—'}</td><td class="g ${g.grade == null && g.letter ? (/^A\+?$/.test(g.letter) ? 'ok' : 'warn') : ''}">${esc(g.letter || '')}</td><td>${esc(g.reportLetter || '')}</td></tr>`).join('')
@@ -41,7 +48,7 @@ function kidSection(k, T) {
   <h3>Homework plan (next 2 weeks)</h3>
   <div class="plan">${(d.plan || []).length ? d.plan.map(day => `<div class="day"><div class="dl">${esc(day.label)}</div>
     ${day.items.map(i => `<div class="it"><a href="${esc(i.link)}" target="_blank">${esc(i.title)}</a><div class="muted">${esc(i.course)} · due ${esc(fmtDay(i.due))}</div></div>`).join('')}</div>`).join('')
-    : '<p class="muted">Nothing scheduled</p>'}</div>
+    : (waiting ? '<p>Waiting for the first homework import.</p>' : '<p class="muted">Nothing scheduled</p>')}</div>
 
   <h3>Homework status</h3>
   <table><tr><th>Due</th><th>Class</th><th>Assignment</th><th>Status</th><th>Score</th></tr>
