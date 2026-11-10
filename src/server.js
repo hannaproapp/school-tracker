@@ -3,7 +3,7 @@ import cron from 'node-cron';
 import { config } from './config.js';
 import { authUrl, handleCallback, isConnected } from './classroom.js';
 import { runAll, runKidById, kidState } from './run.js';
-import { save } from './store.js';
+import { save, load } from './store.js';
 import { normalizeBlackbaud } from './grades.js';
 import { dashboardHtml } from './dashboard.js';
 
@@ -76,6 +76,7 @@ app.post('/code/:kid', authed, express.urlencoded({ extended: false }), (req, re
   res.send(page('Got it', `<p>Code sent. ${kid.name}'s grades will appear on the dashboard in about a minute.</p><p><a href="/kid/${kid.id}?key=${encodeURIComponent(config.dashboardKey)}">Back to dashboard</a></p>`));
 });
 
+app.get('/debug/:kid/dom', authed, (req, res) => res.json(load(`bb-code-dom-${req.params.kid}`, null)));
 app.get('/debug/:kid/screenshot', authed, (req, res) => {
   res.sendFile(`${config.dataDir}/bb-error-${req.params.kid}.png`, err => err && res.status(404).send('none'));
 });
