@@ -176,7 +176,7 @@ async function runKid(kid, state, alertsSent) {
     out.lastDigest = today;
   }
 
-  // ---- what's due next school day: 3pm email, 8pm not-turned-in alert ----
+  // ---- what's due next school day: 4pm email, 8pm not-turned-in alert ----
   const ahead = { Fri: 3, Sat: 2 }[etWeekday()] || 1; // Fri/Sat look through Monday
   const nextDays = Array.from({ length: ahead }, (_, n) => dayKey(Date.now() + (n + 1) * 86400000));
   const dueNext = (out.homework || []).filter(i => i.due && nextDays.includes(dayKey(i.due)))
@@ -187,7 +187,7 @@ async function runKid(kid, state, alertsSent) {
     ? `<li>• <b>${esc(i.course)}</b>: <a href="${esc(i.link)}">${esc(i.title)}</a> <i>(Blackbaud – check it's done)</i></li>`
     : `<li>${i.status === 'todo' ? '☐' : '☑'} <b>${esc(i.course)}</b>: <a href="${esc(i.link)}">${esc(i.title)}</a> <i>(${esc(i.status === 'todo' ? 'not turned in' : i.status)})</i></li>`;
 
-  if (etHour() >= 15 && out.lastTomorrowEmail !== today) {
+  if (etHour() >= 16 && out.lastTomorrowEmail !== today) {
     const html = `<h3>${esc(kid.name)} – homework due ${esc(label)}</h3>` +
       (dueNext.length ? `<ul>${dueNext.map(row).join('')}</ul>` : '<p>Nothing due in Google Classroom or Blackbaud.</p>') +
       `<p>Anything not turned in to Google Classroom by 8pm will trigger an alert.</p><p><a href="${dash}">Dashboard</a></p>`;
