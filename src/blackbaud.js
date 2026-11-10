@@ -28,6 +28,33 @@ async function signedIn(page, base) {
   }).catch(() => false);
 }
 
+// The code dialog can live in an iframe or shadow DOM, so search every frame.
+async function typeCode(page, code, kid) {
+  const dump = [];
+  for (const f of page.frames()) {
+    dump.push(`--- ${f.url()}\n` + (await f.content().catch(() => '')).slice(0, 20000));
+    const candidates = [
+      f.getByLabel(/confirmation code/i),
+      f.locator('input[autocomplete="one-time-code"]'),
+      f.locator('input[name*="code" i], input[id*="code" i]'),
+    ];
+    for (const loc of candidates) {
+      const el = loc.first();
+      if (await el.isVisible().catch(() => false)) {
+        await el.fill(code);
+        const btn = f.getByRole('button', { name: /confirm/i }).first();
+        if (await btn.isVisible().catch(() => false)) await btn.click(); else await el.press('Enter');
+        return;
+      }
+    }
+  }
+  save(`bb-code-dom-${kid.id}`, { at: new Date().toISOString(), frames: dump });
+  // Last resort: click where the field is drawn in the dialog, then type.
+  await page.mouse.click(638, 133);
+  await page.keyboard.type(code, { delay: 60 });
+  await page.keyboard.press('Enter');
+}
+
 // Blackbaud emails a 6-digit code the first time a new device signs in. Ask the kid to
 // type it into the tracker (/code/<id>), wait up to 15 minutes, then enter it. The
 // browser profile is kept on the volume so Blackbaud remembers this device afterwards.
@@ -41,17 +68,7 @@ async function enterEmailedCode(page, kid) {
   while (Date.now() < until) {
     const c = load(`code-${kid.id}`, {});
     if (c.code) {
-      const box = page.getByLabel(/confirmation code/i)
-        .or(page.locator('[role="dialog"] input:not([type="hidden"])'))
-        .or(page.locator('input[autocomplete="one-time-code"], input[name*="code" i], input[id*="code" i]')).first();
-      try {
-        await box.fill(c.code, { timeout: 10000 });
-      } catch {
-        // Fallback: focus the dialog field by clicking its label, then type.
-        await page.locator('text=Confirmation code').first().click();
-        await page.keyboard.type(c.code, { delay: 50 });
-      }
-      await page.locator('button:has-text("Confirm")').first().click();
+      await typeCode(page, c.code, kid);
       save(`code-${kid.id}`, { usedAt: new Date().toISOString(), code: null });
       await sleep(5000);
       return;
