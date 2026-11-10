@@ -66,5 +66,20 @@
       "akalus@gmail.com",
       "weinzweig@gmail.com"
     ]
+  },
+  {
+    "id": "luke",
+    "name": "Luke",
+    "email": [
+      "luke.weinzweig@wheelergmail.org"
+    ],
+    "blackbaudUrl": "https://wheelerschool.myschoolapp.com",
+    "gradeBrowser": "Luke Chrome profile",
+    "classroomOnly": true,
+    "scorecardEmails": [
+      "luke.weinzweig@wheelergmail.org",
+      "akalus@gmail.com",
+      "weinzweig@gmail.com"
+    ]
   }
 ]
