@@ -1,5 +1,7 @@
 import express from 'express';
 import cron from 'node-cron';
+import { email } from './notify.js';
+import { makeGradeMonitor } from './grade-monitor.js';
 import { config } from './config.js';
 import { authUrl, handleCallback, isConnected } from './classroom.js';
 import { runAll, runKidById, kidState } from './run.js';
@@ -43,7 +45,22 @@ app.post('/ingest/:kid', express.text({ type: '*/*', limit: '5mb' }), (req, res)
   res.send(`ok ${courses.length} classes`);
 });
 
-app.get('/health', (_req, res) => res.send('ok'));
+// Notify Ashley on the tracker host even when the grade collector's Mac is offline.
+const gradeChannels = {};
+if (config.mail.user && config.mail.pass) {
+  gradeChannels.email = (title, message) => email([process.env.GRADE_MONITOR_EMAIL || 'akalus@gmail.com'], title, '<p>' + message + '</p>');
+}
+if (config.ntfyTopic) {
+  gradeChannels.push = async (title, message) => {
+    const response = await fetch('https://ntfy.sh/' + encodeURIComponent(config.ntfyTopic), {
+      method: 'POST', body: message, headers: { Title: title, Priority: 'high', Tags: 'warning' },
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!response.ok) throw new Error('Push provider rejected notification');
+  };
+}
+const checkGradeDelivery = makeGradeMonitor({ kids: config.kids.filter(k => ['leo', 'tyler'].includes(k.id)), load, save, channels: gradeChannels });
+app.get('/health', (_req, res) => res.set('X-Grade-Monitor', Object.keys(gradeChannels).join(',') || 'unconfigured').send('ok'));
 
 // Userscript install link. The path carries the ingest key (not the dashboard key), so it can be
 // opened in the kids' Chrome; Tampermonkey offers to install any URL ending in .user.js.
@@ -183,6 +200,8 @@ app.post('/run/:kid', authed, (req, res) => {
 
 app.listen(config.port, () => {
   console.log(`listening on ${config.port}; schedule "${config.cron}" ET`);
+  cron.schedule('* * * * *', () => checkGradeDelivery().catch(console.error), { timezone: 'America/New_York' });
+  checkGradeDelivery().catch(console.error);
   cron.schedule(config.cron, () => runAll().catch(console.error), { timezone: 'America/New_York' });
   cron.schedule('55 15 * * 5', () => sendScorecards().catch(console.error), { timezone: 'America/New_York' }); // Fridays 3:55pm
 });
