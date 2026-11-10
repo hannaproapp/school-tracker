@@ -81,6 +81,12 @@ async function alertLuke(reason) {
   } finally { notifyingLuke = false; }
 }
 
+app.get('/kid/luke/daily-check', authed, (_req, res) => res.set('Cache-Control', 'no-store').json({
+  check: load('luke-classroom-check', null),
+  alerts: load('luke-classroom-alert', null),
+  lastHomeworkEmail: kidState('luke')?.lastTomorrowEmail || null
+}));
+
 app.post('/kid/luke/daily-check', authed, async (_req, res) => {
   const start = Date.now();
   const day = easternDay(new Date(start));
