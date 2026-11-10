@@ -2,7 +2,7 @@ import express from 'express';
 import cron from 'node-cron';
 import { config } from './config.js';
 import { authUrl, handleCallback, isConnected } from './classroom.js';
-import { runAll, runKidById, kidState } from './run.js';
+import { runAll, runKidById, kidState, checkSkippedGradePulls } from './run.js';
 import { save, load } from './store.js';
 import { normalizeBlackbaud } from './grades.js';
 import { dashboardHtml } from './dashboard.js';
@@ -111,4 +111,6 @@ app.post('/run/:kid', authed, (req, res) => {
 app.listen(config.port, () => {
   console.log(`listening on ${config.port}; schedule "${config.cron}" ET`);
   cron.schedule(config.cron, () => runAll().catch(console.error), { timezone: 'America/New_York' });
+  cron.schedule('35 6 * * *', () => checkSkippedGradePulls('5:47am').catch(console.error), { timezone: 'America/New_York' });
+  cron.schedule('35 15 * * *', () => checkSkippedGradePulls('2:47pm').catch(console.error), { timezone: 'America/New_York' });
 });

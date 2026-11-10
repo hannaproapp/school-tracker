@@ -187,3 +187,22 @@ export async function runAll() {
 }
 
 export const kidState = kidId => load(`state-${kidId}`, null);
+
+// Watchdog: the grade check runs on the family computer at 5:47am and 2:47pm ET.
+// If a kid's grades didn't arrive from that run, alert (computer asleep, browser closed,
+// or the kid got signed out).
+export async function checkSkippedGradePulls(slotLabel) {
+  const since = Date.now() - 50 * 60000; // the run was ~45 minutes ago
+  for (const kid of config.kids) {
+    const bb = load(`bb-${kid.id}`, null);
+    if (bb && new Date(bb.at).getTime() >= since) continue;
+    const last = bb ? new Date(bb.at).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', minute: '2-digit' }) : 'never';
+    const where = kid.gradeBrowser || 'the family computer';
+    const text = `${kid.name}'s ${slotLabel} grade check was SKIPPED (last grades: ${last}). Check that the computer is awake with Chrome and the Claude app open, and that ${kid.name} is still signed into Blackbaud in ${where}.`;
+    await email(config.mail.parentTo, `⚠️ ${kid.name}: grade check skipped`, `<p>${esc(text)}</p>`);
+    await push(`${kid.name}: grade check skipped`, text);
+    const st = load(`state-${kid.id}`, {});
+    st.recentAlerts = [{ at: new Date().toISOString(), text }, ...(st.recentAlerts || [])].slice(0, 50);
+    save(`state-${kid.id}`, st);
+  }
+}

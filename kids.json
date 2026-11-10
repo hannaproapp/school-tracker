@@ -28,7 +28,8 @@
     "excludeClasses": [
       "Whole Life Seminar",
       "Physical Education"
-    ]
+    ],
+    "gradeBrowser": "Chrome"
   },
   {
     "id": "tyler",
@@ -41,6 +42,7 @@
     "alertEmails": [],
     "excludeClasses": [
       "Physical Education"
-    ]
+    ],
+    "gradeBrowser": "the Claude app's browser panel"
   }
 ]
