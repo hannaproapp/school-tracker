@@ -81,7 +81,7 @@ app.get('/debug/:kid/screenshot', authed, (req, res) => {
   res.sendFile(`${config.dataDir}/bb-error-${req.params.kid}.png`, err => err && res.status(404).send('none'));
 });
 
-app.get('/connect/:kid', authed, (req, res) => {
+app.get('/connect/:kid', (req, res) => {
   const kid = config.kids.find(k => k.id === req.params.kid);
   if (!kid) return res.status(404).send('Unknown kid');
   res.redirect(authUrl(kid.id, [].concat(kid.email || [])[0]));
