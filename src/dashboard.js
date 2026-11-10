@@ -37,7 +37,8 @@ function kidSection(k, T) {
     <div class="tile"><div class="n">${waiting ? '—' : (counts.submitted || 0) + (counts.late || 0)}</div><div>turned in (14 days)</div></div>
   </div>
 
-  <h3>Grade scorecard</h3>
+  ${k.publishedReport ? `<h3>Wheeler report card · ${esc(k.publishedReport.term)}</h3><table><tr><th>Course</th><th>Published grade</th></tr>${k.publishedReport.marks.map(m => `<tr><td>${esc(m.course)}</td><td><strong>${esc(m.grade)}</strong></td></tr>`).join('')}</table>` : ''}
+  <h3>Current course grades</h3>
   ${noMarks ? `<p>Blackbaud synced ${grades.length} classes. Wheeler supplied no current marks for these classes.</p>` : ''}
   <table><tr><th>Class</th><th>Teacher</th><th>Current grade</th><th>Letter</th><th>${esc(d.reportTerm || '')} report card</th></tr>
   ${grades.length ? grades.map(g => `<tr><td>${esc(g.course)}${g.source ? ` <span class="muted">(${esc(g.source)})</span>` : ''}</td><td>${esc(g.teacher)}</td>
