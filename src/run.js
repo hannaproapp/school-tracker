@@ -2,6 +2,7 @@ import { config, kidAlertEmails } from './config.js';
 import { load, save } from './store.js';
 import { fetchClassroom, isConnected } from './classroom.js';
 import { toLetter, schoolRound } from './grades.js';
+import { fetchBlackbaud, hasCreds } from './blackbaud.js';
 import { email, push } from './notify.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -46,7 +47,13 @@ async function runKid(kid, state, alertsSent) {
     } catch (e) { out.errors.push(`Google Classroom: ${e.message}`); }
   } else out.errors.push('Google Classroom not connected yet');
 
+  let bbError = null;
+  if (hasCreds(kid)) {
+    try { await fetchBlackbaud(kid); }
+    catch (e) { bbError = e.message; console.error(`blackbaud ${kid.id}:`, e.message); }
+  }
   const bb = load(`bb-${kid.id}`, null);
+  if (bbError) out.errors.push(`Blackbaud login: ${bbError}`);
   if (bb) {
     out.grades = bb.courses.map(c => ({ ...c, letter: c.grade != null ? toLetter(c.grade) : c.letter }));
     out.schoolYear = bb.year;

@@ -61,6 +61,10 @@ app.get('/kid/:kid/missing.json', authed, (req, res) => {
     .map(({ course, title, due, link }) => ({ course, title, due, link })));
 });
 
+app.get('/debug/:kid/screenshot', authed, (req, res) => {
+  res.sendFile(`${config.dataDir}/bb-error-${req.params.kid}.png`, err => err && res.status(404).send('none'));
+});
+
 app.get('/connect/:kid', authed, (req, res) => {
   const kid = config.kids.find(k => k.id === req.params.kid);
   if (!kid) return res.status(404).send('Unknown kid');
