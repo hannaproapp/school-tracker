@@ -10,6 +10,19 @@ function gradeClass(raw, T) {
   return 'bad';
 }
 
+function reviewedScoreTable(review) {
+  if (!review?.rows?.length) return '';
+  const groups = new Map();
+  for (const row of review.rows) {
+    if (!groups.has(row.course)) groups.set(row.course, []);
+    groups.get(row.course).push(row);
+  }
+  const date = new Date(review.checked + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone:'UTC', month:'long', day:'numeric', year:'numeric' });
+  const tables = Array.from(groups, ([course, rows]) =>
+    `<details><summary>${esc(course)} (${rows.length})</summary><table><tr><th>Assignment</th><th>Quarter</th><th>Score</th></tr>${rows.map(r => `<tr><td>${esc(r.title)}</td><td>${esc(r.term || '—')}</td><td>${esc(r.earned)}/${esc(r.possible)}</td></tr>`).join('')}</table></details>`).join('');
+  return `<section class="reviewed-scores"><h3>Google Classroom assignment scores</h3><p>${review.rows.length} scores · Checked ${esc(date)}</p>${tables}</section>`;
+}
+
 function kidSection(k, T) {
   const d = k.data || {};
   const hw = (d.homework || []).filter(i => i.due && new Date(i.due) > Date.now() - 14 * 86400000)
@@ -39,6 +52,7 @@ function kidSection(k, T) {
 
   ${k.publishedReport ? `<h3>Wheeler report card · ${esc(k.publishedReport.term)}</h3><table><tr><th>Course</th><th>Published grade</th></tr>${k.publishedReport.marks.map(m => `<tr><td>${esc(m.course)}</td><td><strong>${esc(m.grade)}</strong></td></tr>`).join('')}</table>` : ''}
   ${k.publishedReport?.classroomAverage ? `<h3>Google Classroom average</h3><p><strong>${esc(k.publishedReport.classroomAverage.course)}: ${esc(k.publishedReport.classroomAverage.percent)}%</strong> · checked ${esc(fmtDay(k.publishedReport.classroomAverage.at))}. This is a dated reading from the class page.</p>` : ''}
+  ${reviewedScoreTable(k.reviewedScores)}
   <h3>${k.id === 'luke' ? 'Current Blackbaud grades' : 'Grade scorecard'}</h3>
   ${noMarks ? `<p>Blackbaud synced ${grades.length} classes. Wheeler supplied no current marks for these classes.</p>` : ''}
   <table><tr><th>Class</th><th>Teacher</th><th>Current grade</th><th>Letter</th><th>${esc(d.reportTerm || '')} report card</th></tr>
@@ -82,7 +96,7 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px;bord
 .g{font-weight:700}.g.ok{color:var(--ok)}.g.warn{color:var(--warn)}.g.bad{color:var(--bad)}
 .pill{padding:2px 8px;border-radius:10px;font-size:12px;background:#eee}.pill.missing{background:#fdecec;color:var(--bad)}.pill.late{background:#fff3e0;color:var(--warn)}
 .pill.submitted{background:#e8f5ee;color:var(--ok)}.pill.todo{background:#eef2fb;color:#2c4a8a}
-.plan{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}.day{border:1px solid var(--line);border-radius:10px;padding:10px}
+.reviewed-scores summary{cursor:pointer;padding:10px 0;font-weight:600}.reviewed-scores td:last-child{white-space:nowrap}.plan{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}.day{border:1px solid var(--line);border-radius:10px;padding:10px}
 .dl{font-weight:700;margin-bottom:6px}.it{margin-bottom:8px}.it a{color:var(--ink)}.alerts{padding-left:18px}
 @media(max-width:700px){.tiles{grid-template-columns:repeat(2,1fr)}}
 </style></head><body>
