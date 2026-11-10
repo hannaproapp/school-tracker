@@ -21,7 +21,7 @@ export function authUrl(kidId, loginHint) {
   return client().generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent',
-    scope: SCOPES,
+    scope: config.kids.find(k => k.id === kidId)?.classroomOnly ? SCOPES.filter(s => !s.endsWith('/gmail.readonly')) : SCOPES,
     state: kidId,
     login_hint: loginHint,
   });
