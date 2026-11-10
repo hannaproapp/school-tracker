@@ -21,3 +21,9 @@ Each kid has their own Google token, Blackbaud login, state file, alert log, and
 | `DASHBOARD_KEY` | Append `?key=...` once to open the dashboard |
 | `A_THRESHOLD` | Alert below this percent (default 93) |
 | `RUN_CRON` | Schedule in ET (default 6am, 3pm, 8pm) |
+
+## Daily emails and alerts (per kid, to `alertEmails`/`PARENT_EMAILS` plus the kid)
+- 6am: two-week homework plan and missing work.
+- 3pm: everything due the next school day (Fri/Sat look ahead through Monday) with turned-in status.
+- 8pm: alert (email + phone push) for anything due the next school day that is not turned in.
+- Any run: alerts for new missing work and new grades that round below `A_THRESHOLD`.

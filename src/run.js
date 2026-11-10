@@ -5,6 +5,8 @@ import { toLetter, schoolRound } from './grades.js';
 import { email, push } from './notify.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const etHour = () => process.env.FORCE_ET_HOUR ? Number(process.env.FORCE_ET_HOUR) : Number(new Date().toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hourCycle: 'h23' }));
+const etWeekday = () => new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York', weekday: 'short' });
 const dayKey = d => new Date(d).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
 const dayLabel = d => new Date(d).toLocaleDateString('en-US', { timeZone: 'America/New_York', weekday: 'short', month: 'short', day: 'numeric' });
 
@@ -118,7 +120,7 @@ async function runKid(kid, state, alertsSent) {
 
   // ---- morning plan email (first run of the day) ----
   const today = dayKey(new Date());
-  if (out.lastDigest !== today && new Date().getHours() < 11) {
+  if (out.lastDigest !== today && etHour() < 11) {
     const plan = out.plan.slice(0, 7);
     const html = `<h3>${esc(kid.name)} – homework plan</h3>` +
       plan.map(d => `<p><b>${esc(d.label)}</b></p><ul>${d.items.map(i => `<li>${esc(i.course)}: ${esc(i.title)} <i>(due ${esc(dayLabel(i.due))})</i></li>`).join('')}</ul>`).join('') +
@@ -126,6 +128,34 @@ async function runKid(kid, state, alertsSent) {
       `<p><a href="${config.baseUrl}/kid/${kid.id}?key=${encodeURIComponent(config.dashboardKey)}">Full dashboard</a></p>`;
     await email(kidAlertEmails(kid), `${kid.name}'s homework plan – ${dayLabel(new Date())}`, html);
     out.lastDigest = today;
+  }
+
+  // ---- what's due next school day: 3pm email, 8pm not-turned-in alert ----
+  const ahead = { Fri: 3, Sat: 2 }[etWeekday()] || 1; // Fri/Sat look through Monday
+  const nextDays = Array.from({ length: ahead }, (_, n) => dayKey(Date.now() + (n + 1) * 86400000));
+  const dueNext = (out.homework || []).filter(i => i.due && nextDays.includes(dayKey(i.due)))
+    .sort((a, b) => new Date(a.due) - new Date(b.due));
+  const dash = `${config.baseUrl}/kid/${kid.id}?key=${encodeURIComponent(config.dashboardKey)}`;
+  const label = ahead > 1 ? `through ${dayLabel(nextDays[nextDays.length - 1] + 'T12:00:00-05:00')}` : `tomorrow (${dayLabel(nextDays[0] + 'T12:00:00-05:00')})`;
+  const row = i => `<li>${i.status === 'todo' ? '☐' : '☑'} <b>${esc(i.course)}</b>: <a href="${esc(i.link)}">${esc(i.title)}</a> <i>(${esc(i.status === 'todo' ? 'not turned in' : i.status)})</i></li>`;
+
+  if (etHour() >= 15 && out.lastTomorrowEmail !== today) {
+    const html = `<h3>${esc(kid.name)} – homework due ${esc(label)}</h3>` +
+      (dueNext.length ? `<ul>${dueNext.map(row).join('')}</ul>` : '<p>Nothing due in Google Classroom.</p>') +
+      `<p>Anything not turned in by 8pm will trigger an alert.</p><p><a href="${dash}">Dashboard</a></p>`;
+    await email(kidAlertEmails(kid), `${kid.name}: ${dueNext.length} due ${label}`, html);
+    out.lastTomorrowEmail = today;
+  }
+
+  if (etHour() >= 20 && out.lastEveningCheck !== today) {
+    const open = dueNext.filter(i => i.status === 'todo');
+    if (open.length) {
+      const html = `<p><b>${esc(kid.name)}</b> has ${open.length} assignment${open.length > 1 ? 's' : ''} due ${esc(label)} not turned in as of 8pm:</p><ul>${open.map(row).join('')}</ul><p><a href="${dash}">Dashboard</a></p>`;
+      await email(kidAlertEmails(kid), `⚠️ ${kid.name}: ${open.length} not turned in, due ${label}`, html);
+      await push(`${kid.name}: ${open.length} not turned in`, open.map(i => `${i.course}: ${i.title}`).join('\n').slice(0, 3500), dash);
+      out.recentAlerts = [{ at: new Date().toISOString(), text: `8pm check: ${open.length} not turned in, due ${label}` }, ...(out.recentAlerts || [])].slice(0, 50);
+    }
+    out.lastEveningCheck = today;
   }
   return out;
 }
