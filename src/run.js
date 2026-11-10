@@ -1,7 +1,7 @@
 import { config, kidAlertEmails } from './config.js';
 import { load, save } from './store.js';
 import { fetchClassroom, isConnected } from './classroom.js';
-import { toLetter } from './grades.js';
+import { toLetter, schoolRound } from './grades.js';
 import { email, push } from './notify.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -46,7 +46,7 @@ async function runKid(kid, state, alertsSent) {
 
   const bb = load(`bb-${kid.id}`, null);
   if (bb) {
-    out.grades = bb.courses;
+    out.grades = bb.courses.map(c => ({ ...c, letter: c.grade != null ? toLetter(c.grade) : c.letter }));
     out.schoolYear = bb.year;
     out.gradesAt = bb.at;
     if (Date.now() - new Date(bb.at) > 36 * 3600000) out.errors.push(`Blackbaud: grades not refreshed since ${new Date(bb.at).toLocaleString('en-US', { timeZone: 'America/New_York' })}. Check that ${kid.name} is still signed into Blackbaud in Chrome.`);
@@ -59,19 +59,19 @@ async function runKid(kid, state, alertsSent) {
   const T = config.aThreshold;
   const alerts = [];
   for (const c of out.grades || []) {
-    if (c.grade != null && c.grade < T) {
-      const key = `${kid.id}|course|${c.course}|${Math.round(c.grade)}`;
-      if (!alertsSent[key]) alerts.push({ key, text: `${c.course}: overall ${c.grade}% (${c.letter || toLetter(c.grade)})` });
+    if (c.grade != null && schoolRound(c.grade) < T) {
+      const key = `${kid.id}|course|${c.course}|${schoolRound(c.grade)}`;
+      if (!alertsSent[key]) alerts.push({ key, text: `${c.course}: overall ${c.grade}% → ${schoolRound(c.grade)} (${toLetter(c.grade)})` });
     }
     for (const a of c.assignments || []) {
-      if (a.pct != null && a.pct < T) {
+      if (a.pct != null && schoolRound(a.pct) < T) {
         const key = `${kid.id}|bbassign|${c.course}|${a.id || a.title}`;
         if (!alertsSent[key]) alerts.push({ key, text: `${c.course} – ${a.title}: ${a.pct}%` });
       }
     }
   }
   for (const i of out.homework || []) {
-    if (i.pct != null && i.pct < T) {
+    if (i.pct != null && schoolRound(i.pct) < T) {
       const key = `${kid.id}|crgrade|${i.id}`;
       if (!alertsSent[key]) alerts.push({ key, text: `${i.course} – ${i.title}: ${i.pct}% (Classroom)` });
     }

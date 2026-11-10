@@ -1,7 +1,11 @@
 // Blackbaud grades arrive from the daily Chrome check (POST /ingest/:kid), which reads
 // the student's own signed-in Blackbaud session. This file normalizes that payload.
 
-export function toLetter(p) {
+// Wheeler rounds to the nearest whole percent (.5 and up rounds up) before assigning letters.
+export const schoolRound = p => (p == null ? null : Math.round(p));
+
+export function toLetter(raw) {
+  const p = schoolRound(raw);
   if (p >= 97) return 'A+';
   if (p >= 93) return 'A';
   if (p >= 90) return 'A-';
@@ -25,7 +29,7 @@ export function normalizeBlackbaud(raw) {
       course: g.sectionidentifier || g.groupname || g.SectionIdentifier,
       teacher: g.groupownername || g.GroupOwnerName || '',
       grade: pct,
-      letter: g.cumgradelettergrade || g.lettergrade || (pct != null ? toLetter(pct) : null),
+      letter: pct != null ? toLetter(pct) : (g.cumgradelettergrade || g.lettergrade || null),
       assignments: (assignments || []).map(a => {
         const pts = num(a.Points), max = num(a.MaxPoints);
         return {

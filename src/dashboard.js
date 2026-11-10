@@ -2,8 +2,9 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '
 const fmt = d => d ? new Date(d).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 const fmtDay = d => d ? new Date(d).toLocaleDateString('en-US', { timeZone: 'America/New_York', weekday: 'short', month: 'short', day: 'numeric' }) : '—';
 
-function gradeClass(p, T) {
-  if (p == null) return 'na';
+function gradeClass(raw, T) {
+  if (raw == null) return 'na';
+  const p = Math.round(raw);
   if (p >= T) return 'ok';
   if (p >= 80) return 'warn';
   return 'bad';
@@ -33,7 +34,7 @@ function kidSection(k, T) {
   <h3>Grade scorecard</h3>
   <table><tr><th>Class</th><th>Teacher</th><th>Grade</th><th></th></tr>
   ${grades.length ? grades.map(g => `<tr><td>${esc(g.course)}</td><td>${esc(g.teacher)}</td>
-    <td class="g ${gradeClass(g.grade, T)}">${g.grade != null ? esc(g.grade) + '%' : '—'}</td><td>${esc(g.letter || '')}</td></tr>`).join('')
+    <td class="g ${gradeClass(g.grade, T)}">${g.grade != null ? esc(g.grade) + '% <span class="muted">→ ' + Math.round(g.grade) + '</span>' : '—'}</td><td>${esc(g.letter || '')}</td></tr>`).join('')
     : '<tr><td colspan="4" class="muted">No grades pulled yet</td></tr>'}
   </table>
 
@@ -79,5 +80,5 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px;bord
 <header><h1>School Tracker</h1><nav><a href="/" class="${only ? '' : 'on'}">All</a>${kids.map(k => `<a href="/kid/${esc(k.id)}" class="${only === k.id ? 'on' : ''}">${esc(k.name)}</a>`).join('')}</nav>
 <form method="post" action="${only ? `/run/${esc(only)}` : '/run'}"><button>Refresh ${only ? esc(shown[0]?.name || '') : 'all'} now</button></form></header>
 <main>${shown.map(k => kidSection(k, T)).join('') || '<p>No kids configured. Add them to kids.json.</p>'}
-<p class="muted">Alerts fire for any class or assignment below ${T}% and for missing work.</p></main></body></html>`;
+<p class="muted">Grades round to the nearest whole percent (.5 rounds up). Alerts fire for anything that rounds below ${T}% and for missing work.</p></main></body></html>`;
 }
