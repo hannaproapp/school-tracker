@@ -32,10 +32,10 @@ function kidSection(k, T) {
   </div>
 
   <h3>Grade scorecard</h3>
-  <table><tr><th>Class</th><th>Teacher</th><th>Grade</th><th></th></tr>
-  ${grades.length ? grades.map(g => `<tr><td>${esc(g.course)}${g.source ? ' <span class="muted">(from Classroom)</span>' : ''}</td><td>${esc(g.teacher)}</td>
-    <td class="g ${gradeClass(g.grade, T)}">${g.grade != null ? esc(g.grade) + '% <span class="muted">→ ' + Math.round(g.grade) + '</span>' : '—'}</td><td>${esc(g.letter || '')}</td></tr>`).join('')
-    : '<tr><td colspan="4" class="muted">No grades pulled yet</td></tr>'}
+  <table><tr><th>Class</th><th>Teacher</th><th>Current grade</th><th>Letter</th><th>${esc(d.reportTerm || '')} report card</th></tr>
+  ${grades.length ? grades.map(g => `<tr><td>${esc(g.course)}${g.source ? ` <span class="muted">(${esc(g.source)})</span>` : ''}</td><td>${esc(g.teacher)}</td>
+    <td class="g ${gradeClass(g.grade, T)}">${g.grade != null ? esc(g.grade) + '% <span class="muted">→ ' + Math.round(g.grade) + '</span>' : '—'}</td><td class="g ${g.grade == null && g.letter ? (/^A\+?$/.test(g.letter) ? 'ok' : 'warn') : ''}">${esc(g.letter || '')}</td><td>${esc(g.reportLetter || '')}</td></tr>`).join('')
+    : '<tr><td colspan="5" class="muted">No grades pulled yet</td></tr>'}
   </table>
 
   <h3>Homework plan (next 2 weeks)</h3>

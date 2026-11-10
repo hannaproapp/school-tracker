@@ -40,7 +40,6 @@ async function runKid(kid, state, alertsSent) {
     try {
       const cr = await fetchClassroom(kid.id);
       out.homework = cr.items;
-      out.classroomOverall = cr.overall;
       out.classroomAt = new Date().toISOString();
     } catch (e) { out.errors.push(`Google Classroom: ${e.message}`); }
   } else out.errors.push('Google Classroom not connected yet');
@@ -53,13 +52,23 @@ async function runKid(kid, state, alertsSent) {
     if (Date.now() - new Date(bb.at) > 36 * 3600000) out.errors.push(`Blackbaud: grades not refreshed since ${new Date(bb.at).toLocaleString('en-US', { timeZone: 'America/New_York' })}. Check that ${kid.name} is still signed into Blackbaud in Chrome.`);
   } else out.errors.push(`Blackbaud: no grades received yet (daily Chrome check)`);
 
-  // Classes with no Blackbaud grade (teacher grades in Classroom) get Classroom's overall grade.
-  const key = n => String(n || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean).slice(0, 2).join(' ');
-  out.grades = [...(out.grades || [])];
-  for (const co of out.classroomOverall || prev.classroomOverall || []) {
-    const match = out.grades.find(g => key(g.course) === key(co.course));
-    if (match && match.grade == null) Object.assign(match, { grade: co.grade, letter: toLetter(co.grade), source: 'Classroom' });
-  }
+  // Latest Blackbaud report-card letters (kids.json reportCards). Used as the grade for
+  // classes with no running Blackbaud gradebook (e.g. Chinese).
+  const terms = Object.keys(kid.reportCards || {});
+  const lastTerm = terms[terms.length - 1];
+  const rc = lastTerm ? kid.reportCards[lastTerm] : {};
+  const base = n => String(n || '').replace(/\s*-\s*[A-Z]\s*\([A-Z]\)\s*$/, '').replace(/\s*-\s*\d+$/, '').trim().toLowerCase();
+  out.reportTerm = lastTerm || null;
+  const excluded = (kid.excludeClasses || []).map(x => x.toLowerCase());
+  const isExcluded = n => excluded.some(x => String(n || '').toLowerCase().startsWith(x));
+  out.grades = (out.grades || []).filter(g => !isExcluded(g.course));
+  if (out.homework) out.homework = out.homework.filter(i => !isExcluded(i.course));
+  out.grades = (out.grades || []).map(g => {
+    const letter = Object.entries(rc).find(([c]) => c.toLowerCase() === base(g.course))?.[1] || null;
+    const manual = Object.entries(kid.manualGrades || {}).find(([c]) => c.toLowerCase() === base(g.course))?.[1];
+    if (g.grade == null && manual) return { ...g, reportLetter: letter, grade: manual.grade, letter: toLetter(manual.grade), source: manual.note || 'entered manually' };
+    return { ...g, reportLetter: letter, ...(g.grade == null && letter ? { letter, source: `${lastTerm} report card` } : {}) };
+  });
 
   out.plan = buildPlan(out.homework || []);
   out.missing = (out.homework || []).filter(i => i.status === 'missing');
@@ -68,6 +77,10 @@ async function runKid(kid, state, alertsSent) {
   const T = config.aThreshold;
   const alerts = [];
   for (const c of out.grades || []) {
+    if (c.grade == null && c.reportLetter && !/^A\+?$/.test(c.reportLetter)) {
+      const key = `${kid.id}|rc|${out.reportTerm}|${c.course}|${c.reportLetter}`;
+      if (!alertsSent[key]) alerts.push({ key, text: `${c.course}: ${c.reportLetter} on ${out.reportTerm} report card (no running grade in Blackbaud)` });
+    }
     if (c.grade != null && schoolRound(c.grade) < T) {
       const key = `${kid.id}|course|${c.course}|${schoolRound(c.grade)}`;
       if (!alertsSent[key]) alerts.push({ key, text: `${c.course}: overall ${c.grade}% → ${schoolRound(c.grade)} (${toLetter(c.grade)})` });

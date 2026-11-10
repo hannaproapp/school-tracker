@@ -5,6 +5,26 @@
     "grade": "11",
     "email": "",
     "blackbaudUrl": "https://wheelerschool.myschoolapp.com",
-    "alertEmails": []
+    "alertEmails": [],
+    "reportCards": {
+      "Q1": {
+        "English 11": "B+",
+        "Precalculus": "A",
+        "US History": "B",
+        "Physics": "A-",
+        "Chinese 2": "B",
+        "Three Dimensional Design": "A-"
+      }
+    },
+    "manualGrades": {
+      "Three Dimensional Design": {
+        "grade": 93.5,
+        "note": "~93-94 per parent"
+      }
+    },
+    "excludeClasses": [
+      "Whole Life Seminar",
+      "Physical Education"
+    ]
   }
 ]
