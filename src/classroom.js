@@ -67,6 +67,7 @@ export async function fetchClassroom(kidId) {
   const cr = google.classroom({ version: 'v1', auth });
 
   const courses = await listAll(p => cr.courses.list(p), 'courses', { studentId: 'me', courseStates: ['ACTIVE'] });
+  if (kidId === 'luke' && !courses.length) throw new Error("No active Classroom courses returned");
   const items = [];
   for (const course of courses) {
     let work = [], subs = [];
@@ -74,6 +75,7 @@ export async function fetchClassroom(kidId) {
       work = await listAll(p => cr.courses.courseWork.list(p), 'courseWork', { courseId: course.id, orderBy: 'dueDate desc' });
       subs = await listAll(p => cr.courses.courseWork.studentSubmissions.list(p), 'studentSubmissions', { courseId: course.id, courseWorkId: '-', userId: 'me' });
     } catch (e) {
+      if (kidId === 'luke') throw new Error(`Could not read assignments and submissions for ${course.name}`);
       console.error(`classroom course ${course.name}:`, e.message);
       continue;
     }
