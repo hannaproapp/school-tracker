@@ -1,10 +1,10 @@
 import express from 'express';
 import cron from 'node-cron';
-import path from 'path';
-import fs from 'fs';
 import { config } from './config.js';
 import { authUrl, handleCallback, isConnected } from './classroom.js';
 import { runAll, runKidById, kidState } from './run.js';
+import { save } from './store.js';
+import { normalizeBlackbaud } from './grades.js';
 import { dashboardHtml } from './dashboard.js';
 
 const app = express();
@@ -18,6 +18,24 @@ function authed(req, res, next) {
   if (req.query.key) res.setHeader('Set-Cookie', `dk=${encodeURIComponent(config.dashboardKey)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=31536000`);
   next();
 }
+
+// Grades pushed from the daily Chrome check running in the student's signed-in Blackbaud tab.
+app.options('/ingest/:kid', (_req, res) => {
+  res.set({ 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' }).sendStatus(204);
+});
+app.post('/ingest/:kid', express.text({ type: '*/*', limit: '5mb' }), (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  if (req.query.key !== config.dashboardKey) return res.status(401).send('bad key');
+  const kid = config.kids.find(k => k.id === req.params.kid);
+  if (!kid) return res.status(404).send('unknown kid');
+  let raw;
+  try { raw = JSON.parse(req.body); } catch { return res.status(400).send('bad json'); }
+  const courses = normalizeBlackbaud(raw);
+  save(`bb-${kid.id}`, { at: new Date().toISOString(), year: raw.year, courses });
+  save(`bb-raw-${kid.id}`, raw);
+  runKidById(kid.id).catch(console.error);
+  res.send(`ok ${courses.length} classes`);
+});
 
 app.get('/health', (_req, res) => res.send('ok'));
 
@@ -63,10 +81,6 @@ app.post('/run/:kid', authed, (req, res) => {
   res.redirect(`/kid/${encodeURIComponent(req.params.kid)}?key=${encodeURIComponent(config.dashboardKey)}`);
 });
 
-app.get('/debug/:kid/screenshot', authed, (req, res) => {
-  const f = path.join(config.dataDir, `bb-error-${req.params.kid}.png`);
-  fs.existsSync(f) ? res.sendFile(f) : res.status(404).send('none');
-});
 
 app.listen(config.port, () => {
   console.log(`listening on ${config.port}; schedule "${config.cron}" ET`);

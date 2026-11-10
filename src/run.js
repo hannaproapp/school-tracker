@@ -1,7 +1,7 @@
 import { config, kidAlertEmails } from './config.js';
 import { load, save } from './store.js';
 import { fetchClassroom, isConnected } from './classroom.js';
-import { fetchBlackbaud, toLetter } from './blackbaud.js';
+import { toLetter } from './grades.js';
 import { email, push } from './notify.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -44,12 +44,13 @@ async function runKid(kid, state, alertsSent) {
     } catch (e) { out.errors.push(`Google Classroom: ${e.message}`); }
   } else out.errors.push('Google Classroom not connected yet');
 
-  try {
-    const bb = await fetchBlackbaud(kid);
+  const bb = load(`bb-${kid.id}`, null);
+  if (bb) {
     out.grades = bb.courses;
     out.schoolYear = bb.year;
-    out.gradesAt = new Date().toISOString();
-  } catch (e) { out.errors.push(`Blackbaud: ${e.message}`); }
+    out.gradesAt = bb.at;
+    if (Date.now() - new Date(bb.at) > 36 * 3600000) out.errors.push(`Blackbaud: grades not refreshed since ${new Date(bb.at).toLocaleString('en-US', { timeZone: 'America/New_York' })}. Check that ${kid.name} is still signed into Blackbaud in Chrome.`);
+  } else out.errors.push(`Blackbaud: no grades received yet (daily Chrome check)`);
 
   out.plan = buildPlan(out.homework || []);
   out.missing = (out.homework || []).filter(i => i.status === 'missing');
@@ -79,8 +80,9 @@ async function runKid(kid, state, alertsSent) {
       if (!alertsSent[key]) alerts.push({ key, text: `MISSING: ${i.course} – ${i.title} (was due ${dayLabel(i.due)})` });
     }
   }
-  if (out.errors.some(e => e.startsWith('Blackbaud')) && !prev.errors?.some(e => e.startsWith('Blackbaud'))) {
-    alerts.push({ key: `${kid.id}|err|${Date.now()}`, text: `Grade check failed: ${out.errors.find(e => e.startsWith('Blackbaud'))}` });
+  const stale = out.errors.find(e => e.includes('not refreshed'));
+  if (stale && !prev.errors?.some(e => e.includes('not refreshed'))) {
+    alerts.push({ key: `${kid.id}|err|${Date.now()}`, text: stale });
   }
 
   if (alerts.length) {

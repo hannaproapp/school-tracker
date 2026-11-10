@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/playwright:v1.47.2-jammy
+FROM node:20-slim
 WORKDIR /app
 COPY package.json ./
 RUN npm install --omit=dev

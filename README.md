@@ -5,7 +5,7 @@ submitted/missing status, a grade scorecard, and alerts for anything below an A.
 
 ## Adding a kid
 1. Add an entry to `kids.json` (`id` is lowercase and used everywhere below). Push; Railway redeploys.
-2. In Railway, tracker, Variables: add `<ID>_BB_USER` and `<ID>_BB_PASS` (for example `TYLER_BB_USER`).
+2. The kid signs into Blackbaud once in the family Chrome (Continue with Google, their school account). The daily Chrome check runs `collector.js` in that tab and posts grades to `/ingest/<id>`.
 3. Open `/kid/<id>` on the dashboard and click **Connect Google account**; the kid signs in and approves.
 
 Each kid has their own Google token, Blackbaud login, state file, alert log, and dashboard page (`/kid/<id>`).
@@ -15,7 +15,6 @@ Each kid has their own Google token, Blackbaud login, state file, alert log, and
 | Variable | Purpose |
 |---|---|
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google OAuth client for the Classroom API |
-| `<ID>_BB_USER`, `<ID>_BB_PASS` | Each kid's Blackbaud login |
 | `SMTP_USER`, `SMTP_PASS` | Gmail address and app password used to send alerts |
 | `PARENT_EMAILS` | Comma-separated alert recipients |
 | `NTFY_TOPIC` | Phone push topic (ntfy app) |

@@ -1,6 +1,6 @@
 import fs from 'fs';
-// Kids are defined in kids.json (no secrets). Each kid's Blackbaud login lives in
-// Railway variables <ID>_BB_USER / <ID>_BB_PASS (e.g. LEO_BB_USER). Google Classroom
+// Kids are defined in kids.json (no secrets). Blackbaud grades come from a daily check
+// in the family Chrome where each kid is signed into Blackbaud. Google Classroom
 // tokens are stored per kid on the volume after that kid approves access.
 const env = process.env;
 const kidsFile = new URL('../kids.json', import.meta.url);
