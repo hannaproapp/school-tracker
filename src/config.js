@@ -34,7 +34,7 @@ export const config = {
 };
 
 export const kidBlackbaudBase = kid => (kid.blackbaudUrl || config.blackbaud.base).replace(/\/$/, '');
-export const kidAlertEmails = kid => [...(kid.alertEmails?.length ? kid.alertEmails : config.mail.parentTo), ...(kid.email ? [kid.email] : [])];
+export const kidAlertEmails = kid => [...(kid.alertEmails?.length ? kid.alertEmails : config.mail.parentTo), ...[].concat(kid.email || [])];
 
 export function kidCreds(kid) {
   return {

@@ -64,7 +64,7 @@ app.get('/kid/:kid/missing.json', authed, (req, res) => {
 app.get('/connect/:kid', authed, (req, res) => {
   const kid = config.kids.find(k => k.id === req.params.kid);
   if (!kid) return res.status(404).send('Unknown kid');
-  res.redirect(authUrl(kid.id, kid.email));
+  res.redirect(authUrl(kid.id, [].concat(kid.email || [])[0]));
 });
 
 app.get('/oauth/callback', async (req, res) => {
