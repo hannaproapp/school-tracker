@@ -55,6 +55,12 @@ app.get('/kid/:kid', authed, (req, res) => {
   res.send(dashboardHtml(config.kids.map(kidView), config.aThreshold, kid.id));
 });
 
+app.get('/kid/:kid/missing.json', authed, (req, res) => {
+  const st = kidState(req.params.kid);
+  res.json((st?.homework || []).filter(i => i.status === 'missing').sort((a, b) => new Date(a.due) - new Date(b.due))
+    .map(({ course, title, due, link }) => ({ course, title, due, link })));
+});
+
 app.get('/connect/:kid', authed, (req, res) => {
   const kid = config.kids.find(k => k.id === req.params.kid);
   if (!kid) return res.status(404).send('Unknown kid');
