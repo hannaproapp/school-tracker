@@ -59,7 +59,7 @@ if (config.ntfyTopic) {
     if (!response.ok) throw new Error('Push provider rejected notification');
   };
 }
-const checkGradeDelivery = makeGradeMonitor({ kids: config.kids.filter(k => ['leo', 'tyler'].includes(k.id)), load, save, channels: gradeChannels });
+const checkGradeDelivery = makeGradeMonitor({ kids: config.kids.filter(k => ['leo', 'tyler', 'luke'].includes(k.id)), load, save, channels: gradeChannels });
 app.get('/health', (_req, res) => res.set('X-Grade-Monitor', Object.keys(gradeChannels).join(',') || 'unconfigured').send('ok'));
 
 // Userscript install link. The path carries the ingest key (not the dashboard key), so it can be
