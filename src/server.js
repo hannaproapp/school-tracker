@@ -131,7 +131,14 @@ app.post('/kid/luke/reviewed-homework', authed, express.json({limit:'24kb'}), (r
   save('reviewed-homework-luke', {at:new Date(stamp).toISOString(),items});
   res.sendStatus(204);
 });
-const kidView = k => ({ ...k, review: k.id === 'luke' ? load('reviewed-homework-luke', null) : null, connected: isConnected(k.id), data: kidState(k.id) });
+app.post('/kid/luke/report-card', authed, express.json({limit:'16kb'}), (req, res) => {
+  const {term, marks} = req.body || {};
+  if (typeof term !== 'string' || term.length > 50 || !Array.isArray(marks) || !marks.length || marks.length > 40 ||
+      !marks.every(m => m && typeof m.course === 'string' && m.course.length <= 120 && /^(?:[A-F][+-]?|Credit|Pass)$/.test(m.grade))) return res.sendStatus(400);
+  save('report-card-luke', {term, marks});
+  res.sendStatus(204);
+});
+const kidView = k => ({ ...k, publishedReport: k.id === 'luke' ? load('report-card-luke', null) : null, review: k.id === 'luke' ? load('reviewed-homework-luke', null) : null, connected: isConnected(k.id), data: kidState(k.id) });
 
 app.get('/', authed, (_req, res) => {
   res.send(dashboardHtml(config.kids.map(kidView), config.aThreshold, null));
