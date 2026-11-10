@@ -38,7 +38,8 @@ function kidSection(k, T) {
   </div>
 
   ${k.publishedReport ? `<h3>Wheeler report card · ${esc(k.publishedReport.term)}</h3><table><tr><th>Course</th><th>Published grade</th></tr>${k.publishedReport.marks.map(m => `<tr><td>${esc(m.course)}</td><td><strong>${esc(m.grade)}</strong></td></tr>`).join('')}</table>` : ''}
-  <h3>Current course grades</h3>
+  ${k.publishedReport?.classroomAverage ? `<h3>Google Classroom average</h3><p><strong>${esc(k.publishedReport.classroomAverage.course)}: ${esc(k.publishedReport.classroomAverage.percent)}%</strong> · checked ${esc(fmtDay(k.publishedReport.classroomAverage.at))}. This is a dated reading from the class page.</p>` : ''}
+  <h3>${k.id === 'luke' ? 'Current Blackbaud grades' : 'Grade scorecard'}</h3>
   ${noMarks ? `<p>Blackbaud synced ${grades.length} classes. Wheeler supplied no current marks for these classes.</p>` : ''}
   <table><tr><th>Class</th><th>Teacher</th><th>Current grade</th><th>Letter</th><th>${esc(d.reportTerm || '')} report card</th></tr>
   ${grades.length ? grades.map(g => `<tr><td>${esc(g.course)}${g.source ? ` <span class="muted">(${esc(g.source)})</span>` : ''}</td><td>${esc(g.teacher)}</td>
