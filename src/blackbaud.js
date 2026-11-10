@@ -8,6 +8,7 @@ import { save, load } from './store.js';
 import { email, push } from './notify.js';
 import { kidAlertEmails } from './config.js';
 import { normalizeBlackbaud } from './grades.js';
+import { findBlackbaudCode } from './classroom.js';
 
 function schoolYearLabel() {
   if (config.blackbaud.schoolYear) return config.blackbaud.schoolYear;
@@ -78,7 +79,19 @@ async function typeCode(page, code, kid) {
 // type it into the tracker (/code/<id>), wait up to 15 minutes, then enter it. The
 // browser profile is kept on the volume so Blackbaud remembers this device afterwards.
 async function enterEmailedCode(page, kid) {
+  const requested = Date.now();
   save(`code-${kid.id}`, { requestedAt: new Date().toISOString(), code: null });
+  // First try reading the code from the kid's school inbox automatically (up to 3 minutes).
+  for (let i = 0; i < 36; i++) {
+    await sleep(5000);
+    const auto = await findBlackbaudCode(kid.id, requested).catch(e => { console.error('gmail', kid.id, e.message); return null; });
+    if (auto) {
+      await typeCode(page, auto, kid);
+      await sleep(6000);
+      return;
+    }
+  }
+  // Fall back to asking a person.
   const link = `${config.baseUrl}/code/${kid.id}?key=${encodeURIComponent(config.dashboardKey)}`;
   const msg = `Blackbaud just emailed ${kid.name} a 6-digit code. Enter it here within 15 minutes so the grade checker can sign in: ${link}`;
   await push(`${kid.name}: enter Blackbaud code`, msg, link);

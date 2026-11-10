@@ -5,6 +5,7 @@ import { load, save } from './store.js';
 const SCOPES = [
   'https://www.googleapis.com/auth/classroom.courses.readonly',
   'https://www.googleapis.com/auth/classroom.coursework.me.readonly',
+  'https://www.googleapis.com/auth/gmail.readonly', // to read Blackbaud sign-in codes
   'openid', 'email',
 ];
 
@@ -128,4 +129,27 @@ function overallGrade(course, items) {
   }
   const pts = graded.reduce((a, i) => a + i.score, 0), max = graded.reduce((a, i) => a + i.points, 0);
   return { grade: Math.round((pts / max) * 10000) / 100, method: 'total points' };
+}
+
+
+// Finds the newest 6-digit Blackbaud sign-in code in the kid's school inbox received after `sinceMs`.
+export async function findBlackbaudCode(kidId, sinceMs) {
+  const tok = load('tokens', {})[kidId];
+  if (!tok) return null;
+  const auth = client();
+  auth.setCredentials({ refresh_token: tok.refresh_token });
+  const gmail = google.gmail({ version: 'v1', auth });
+  const { data } = await gmail.users.messages.list({ userId: 'me', q: 'blackbaud newer_than:1d', maxResults: 5 });
+  for (const m of data.messages || []) {
+    const { data: msg } = await gmail.users.messages.get({ userId: 'me', id: m.id, format: 'full' });
+    if (Number(msg.internalDate) < sinceMs - 60000) continue;
+    const parts = [msg.snippet || ''];
+    const walk = p => { if (!p) return; if (p.body?.data) parts.push(Buffer.from(p.body.data, 'base64').toString('utf8')); (p.parts || []).forEach(walk); };
+    walk(msg.payload);
+    const subject = (msg.payload.headers || []).find(h => h.name.toLowerCase() === 'subject')?.value || '';
+    const text = (subject + ' ' + parts.join(' ')).replace(/<[^>]+>/g, ' ');
+    const code = text.match(/\b(\d{6})\b/);
+    if (code) return code[1];
+  }
+  return null;
 }
