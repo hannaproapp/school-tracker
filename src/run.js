@@ -3,6 +3,7 @@ import { load, save } from './store.js';
 import { fetchClassroom, isConnected } from './classroom.js';
 import { toLetter, schoolRound } from './grades.js';
 import { fetchBlackbaud, hasCreds } from './blackbaud.js';
+import { recordSnapshot } from './scorecard.js';
 import { email, push } from './notify.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -78,6 +79,8 @@ async function runKid(kid, state, alertsSent) {
     if (g.grade == null && manual) return { ...g, reportLetter: letter, grade: manual.grade, letter: toLetter(manual.grade), source: manual.note || 'entered manually' };
     return { ...g, reportLetter: letter, ...(g.grade == null && letter ? { letter, source: `${lastTerm} report card` } : {}) };
   });
+
+  if (out.grades?.length) recordSnapshot(kid.id, out.grades);
 
   out.plan = buildPlan(out.homework || []);
   out.missing = (out.homework || []).filter(i => i.status === 'missing');

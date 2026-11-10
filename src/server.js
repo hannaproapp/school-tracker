@@ -3,6 +3,7 @@ import cron from 'node-cron';
 import { config } from './config.js';
 import { authUrl, handleCallback, isConnected } from './classroom.js';
 import { runAll, runKidById, kidState, checkSkippedGradePulls } from './run.js';
+import { buildScorecard, sendScorecards } from './scorecard.js';
 import { save, load } from './store.js';
 import { normalizeBlackbaud } from './grades.js';
 import { dashboardHtml } from './dashboard.js';
@@ -81,6 +82,16 @@ app.get('/debug/:kid/screenshot', authed, (req, res) => {
   res.sendFile(`${config.dataDir}/bb-error-${req.params.kid}.png`, err => err && res.status(404).send('none'));
 });
 
+app.get('/kid/:kid/scorecard', authed, (req, res) => {
+  const kid = config.kids.find(k => k.id === req.params.kid);
+  if (!kid) return res.status(404).send('Unknown kid');
+  res.send(buildScorecard(kid, kidState(kid.id)).html);
+});
+app.post('/kid/:kid/scorecard/send', authed, async (req, res) => {
+  await sendScorecards(req.params.kid);
+  res.send('sent');
+});
+
 app.get('/connect/:kid', (req, res) => {
   const kid = config.kids.find(k => k.id === req.params.kid);
   if (!kid) return res.status(404).send('Unknown kid');
@@ -111,6 +122,7 @@ app.post('/run/:kid', authed, (req, res) => {
 app.listen(config.port, () => {
   console.log(`listening on ${config.port}; schedule "${config.cron}" ET`);
   cron.schedule(config.cron, () => runAll().catch(console.error), { timezone: 'America/New_York' });
+  cron.schedule('55 15 * * 5', () => sendScorecards().catch(console.error), { timezone: 'America/New_York' }); // Fridays 3:55pm, after the 2:47pm grade pull
   cron.schedule('35 6 * * *', () => checkSkippedGradePulls('5:47am').catch(console.error), { timezone: 'America/New_York' });
   cron.schedule('35 15 * * *', () => checkSkippedGradePulls('2:47pm').catch(console.error), { timezone: 'America/New_York' });
 });

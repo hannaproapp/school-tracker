@@ -27,3 +27,4 @@ Each kid has their own Google token, Blackbaud login, state file, alert log, and
 - 3pm: everything due the next school day (Fri/Sat look ahead through Monday) with turned-in status.
 - 8pm: alert (email + phone push) for anything due the next school day that is not turned in.
 - Any run: alerts for new missing work and new grades that round below `A_THRESHOLD`.
+- Fridays 3:55pm: weekly scorecard email (grade now vs. a week ago per class, the graded work that moved it, missing work, dashboard link) to each kid's `scorecardEmails`. Preview: `/kid/<id>/scorecard`.

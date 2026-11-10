@@ -29,7 +29,12 @@
       "Whole Life Seminar",
       "Physical Education"
     ],
-    "gradeBrowser": "Chrome"
+    "gradeBrowser": "Chrome",
+    "scorecardEmails": [
+      "MidnightWolfyButNew@gmail.com",
+      "akalus@gmail.com",
+      "weinzweig@gmail.com"
+    ]
   },
   {
     "id": "tyler",
@@ -55,6 +60,11 @@
         "Spanish 1": "A",
         "Foundation Art": "B"
       }
-    }
+    },
+    "scorecardEmails": [
+      "tyler.weinzweig@wheelergmail.org",
+      "akalus@gmail.com",
+      "weinzweig@gmail.com"
+    ]
   }
 ]
