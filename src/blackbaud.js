@@ -41,8 +41,16 @@ async function enterEmailedCode(page, kid) {
   while (Date.now() < until) {
     const c = load(`code-${kid.id}`, {});
     if (c.code) {
-      const box = page.locator('input[name*="code" i], input[autocomplete="one-time-code"], input[type="text"]:visible, input[type="tel"]:visible').first();
-      await box.fill(c.code);
+      const box = page.getByLabel(/confirmation code/i)
+        .or(page.locator('[role="dialog"] input:not([type="hidden"])'))
+        .or(page.locator('input[autocomplete="one-time-code"], input[name*="code" i], input[id*="code" i]')).first();
+      try {
+        await box.fill(c.code, { timeout: 10000 });
+      } catch {
+        // Fallback: focus the dialog field by clicking its label, then type.
+        await page.locator('text=Confirmation code').first().click();
+        await page.keyboard.type(c.code, { delay: 50 });
+      }
       await page.locator('button:has-text("Confirm")').first().click();
       save(`code-${kid.id}`, { usedAt: new Date().toISOString(), code: null });
       await sleep(5000);
