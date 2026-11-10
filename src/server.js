@@ -202,6 +202,7 @@ app.listen(config.port, () => {
   console.log(`listening on ${config.port}; schedule "${config.cron}" ET`);
   cron.schedule('* * * * *', () => checkGradeDelivery().catch(console.error), { timezone: 'America/New_York' });
   checkGradeDelivery().catch(console.error);
+  cron.schedule('0 16 * * *', () => runAll().catch(console.error), { timezone: 'America/New_York' }); // Daily due-tomorrow emails
   cron.schedule(config.cron, () => runAll().catch(console.error), { timezone: 'America/New_York' });
   cron.schedule('55 15 * * 5', () => sendScorecards().catch(console.error), { timezone: 'America/New_York' }); // Fridays 3:55pm
 });
