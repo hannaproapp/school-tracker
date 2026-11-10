@@ -84,12 +84,14 @@ ${missing.length ? `<ul>${missing.slice(0, 40).map(i => `<li>${esc(i.course)}: <
   return { html, subject: `${kid.name}'s weekly scorecard – ${day(new Date())}` };
 }
 
-export async function sendScorecards(onlyKid) {
+export async function sendScorecards(onlyKid, note, subjectPrefix) {
   for (const kid of config.kids) {
     if (onlyKid && kid.id !== onlyKid) continue;
     const state = load(`state-${kid.id}`, null);
     if (!state) continue;
-    const { html, subject } = buildScorecard(kid, state);
+    let { html, subject } = buildScorecard(kid, state);
+    if (note) html = `<div style="font:15px -apple-system,Segoe UI,sans-serif;background:#fff6e5;border:1px solid #f0d9a8;border-radius:8px;padding:12px 14px;margin-bottom:18px;max-width:720px">${note}</div>` + html;
+    if (subjectPrefix) subject = `${subjectPrefix} ${subject}`;
     const to = [...new Set([...(kid.scorecardEmails || []), ...(config.scorecardParents || [])])];
     await email(to, subject, html);
   }

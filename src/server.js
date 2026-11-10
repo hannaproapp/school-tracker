@@ -87,8 +87,10 @@ app.get('/kid/:kid/scorecard', authed, (req, res) => {
   if (!kid) return res.status(404).send('Unknown kid');
   res.send(buildScorecard(kid, kidState(kid.id)).html);
 });
-app.post('/kid/:kid/scorecard/send', authed, async (req, res) => {
-  await sendScorecards(req.params.kid);
+app.post('/kid/:kid/scorecard/send', authed, express.text({ type: '*/*' }), async (req, res) => {
+  let opts = {};
+  try { opts = JSON.parse(req.body || '{}'); } catch {}
+  await sendScorecards(req.params.kid, opts.note, opts.subjectPrefix);
   res.send('sent');
 });
 
