@@ -29,5 +29,18 @@
       "Whole Life Seminar",
       "Physical Education"
     ]
+  },
+  {
+    "id": "tyler",
+    "name": "Tyler",
+    "grade": "9",
+    "email": [
+      "tyler.weinzweig@wheelergmail.org"
+    ],
+    "blackbaudUrl": "https://wheelerschool.myschoolapp.com",
+    "alertEmails": [],
+    "excludeClasses": [
+      "Physical Education"
+    ]
   }
 ]
