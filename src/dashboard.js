@@ -37,7 +37,12 @@ function scorecardGrades(k) {
       g.source = 'Google Classroom' + (avg.period ? ' · ' + avg.period : '');
     }
   }
-  for (const score of k.reviewedScores?.rows || []) {
+  const imported = k.id === 'luke' && k.data?.classroomAt;
+  const scores = imported
+    ? (k.data.homework || []).filter(i => i.source === 'classroom' && i.score != null)
+        .map(i => ({course:i.course, title:i.title, earned:i.score, possible:i.points ?? '—'}))
+    : k.reviewedScores?.rows || [];
+  for (const score of scores) {
     const g = course(score.course);
     (g.reviewedRows ||= []).push(score);
   }
@@ -85,7 +90,7 @@ function kidSection(k, T) {
   ${noMarks ? `<p>Blackbaud synced ${grades.length} classes. Wheeler supplied no current marks for these classes.</p>` : ''}
   <table><tr><th>Class</th><th>Teacher</th><th>Current grade</th><th>Letter</th><th>${esc(k.publishedReport?.term || d.reportTerm || '')} report card</th></tr>
   ${grades.length ? grades.map(g => `<tr><td>${esc(g.course)}${g.source ? ` <span class="muted">(${esc(g.source)})</span>` : ''}</td><td>${esc(g.teacher)}</td>
-    <td class="g ${gradeClass(g.grade, T)}">${g.grade != null ? esc(g.grade) + '% <span class="muted">→ ' + Math.round(g.grade) + '</span>' : '—'}</td><td class="g ${g.grade == null && g.letter ? (/^A\+?$/.test(g.letter) ? 'ok' : 'warn') : ''}">${esc(g.letter || '')}</td><td>${esc(g.reportLetter || '')}</td></tr>${scoreDetails(g, k.reviewedScores?.checked)}`).join('')
+    <td class="g ${gradeClass(g.grade, T)}">${g.grade != null ? esc(g.grade) + '% <span class="muted">→ ' + Math.round(g.grade) + '</span>' : '—'}</td><td class="g ${g.grade == null && g.letter ? (/^A\+?$/.test(g.letter) ? 'ok' : 'warn') : ''}">${esc(g.letter || '')}</td><td>${esc(g.reportLetter || '')}</td></tr>${scoreDetails(g, d.classroomAt ? fmt(d.classroomAt) : k.reviewedScores?.checked)}`).join('')
     : '<tr><td colspan="5" class="muted">No grades pulled yet</td></tr>'}
   </table>
 
