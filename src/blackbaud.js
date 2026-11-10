@@ -31,8 +31,27 @@ async function signedIn(page, base) {
 // The code dialog can live in an iframe or shadow DOM, so search every frame.
 async function typeCode(page, code, kid) {
   const dump = [];
+  // Blackbaud renders the code box in its own iframe: app.blackbaud.com/otp-addin/
+  for (let i = 0; i < 10; i++) {
+    const otp = page.frames().find(f => f.url().includes('otp-addin'));
+    if (otp) {
+      const input = otp.locator('input:not([type="hidden"])').first();
+      if (await input.isVisible().catch(() => false)) {
+        await input.click();
+        await input.fill(code);
+        const btn = otp.getByRole('button', { name: /confirm/i }).first();
+        if (await btn.isVisible().catch(() => false)) await btn.click();
+        else {
+          const outer = page.getByRole('button', { name: /confirm/i }).first();
+          if (await outer.isVisible().catch(() => false)) await outer.click(); else await input.press('Enter');
+        }
+        return;
+      }
+    }
+    await sleep(1000);
+  }
   for (const f of page.frames()) {
-    dump.push(`--- ${f.url()}\n` + (await f.content().catch(() => '')).slice(0, 20000));
+    dump.push(`--- ${f.url()}\n` + (await f.content().catch(() => '')).slice(-30000));
     const candidates = [
       f.getByLabel(/confirmation code/i),
       f.locator('input[autocomplete="one-time-code"]'),
