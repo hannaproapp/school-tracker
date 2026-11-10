@@ -19,6 +19,11 @@ function authed(req, res, next) {
 
 app.get('/health', (_req, res) => res.send('ok'));
 
+const page = (title, body) => `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><body style="font:16px/1.5 system-ui;max-width:720px;margin:40px auto;padding:0 20px"><h1>${title}</h1>${body}</body>`;
+app.get('/about', (_req, res) => res.send(page('Kalus School Tracker', '<p>A private family tool that shows our own children their Google Classroom assignments, due dates and turned-in status, and their school grades, and alerts parents when work is missing or a grade drops. Not available to the public.</p>')));
+app.get('/privacy', (_req, res) => res.send(page('Privacy Policy', '<p>This app is used only by the Kalus family. With a student\'s permission it reads that student\'s own Google Classroom courses, assignments and submission status (read-only). The data is stored on a private server, shown only to that student and their parents, and used only to build homework plans and grade alerts. It is never sold, shared with third parties, or used for advertising. Access can be removed at any time at myaccount.google.com/permissions, and stored data is deleted on request.</p>')));
+app.get('/terms', (_req, res) => res.send(page('Terms of Service', '<p>Private family tool provided as-is for the Kalus family. No other use is permitted.</p>')));
+
 const kidView = k => ({ ...k, connected: isConnected(k.id), data: kidState(k.id) });
 
 app.get('/', authed, (_req, res) => {
