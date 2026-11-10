@@ -41,8 +41,20 @@
     "blackbaudUrl": "https://wheelerschool.myschoolapp.com",
     "alertEmails": [],
     "excludeClasses": [
-      "Physical Education"
+      "Physical Education",
+      "Whole Life Seminar",
+      "FYI"
     ],
-    "gradeBrowser": "the Claude app's browser panel"
+    "gradeBrowser": "the Claude app's browser panel",
+    "reportCards": {
+      "Q1": {
+        "English 9": "B-",
+        "Geometry & Data Analysis": "B-",
+        "Topics in World History": "A",
+        "Environmental Science": "B+",
+        "Spanish 1": "A",
+        "Foundation Art": "B"
+      }
+    }
   }
 ]
