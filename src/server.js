@@ -135,7 +135,10 @@ app.post('/kid/luke/report-card', authed, express.json({limit:'16kb'}), (req, re
   const {term, marks} = req.body || {};
   if (typeof term !== 'string' || term.length > 50 || !Array.isArray(marks) || !marks.length || marks.length > 40 ||
       !marks.every(m => m && typeof m.course === 'string' && m.course.length <= 120 && /^(?:[A-F][+-]?|Credit|Pass)$/.test(m.grade))) return res.sendStatus(400);
-  save('report-card-luke', {term, marks});
+  const {classroomAverage} = req.body;
+  if (classroomAverage && (typeof classroomAverage.course !== 'string' || classroomAverage.course.length > 100 ||
+      !Number.isFinite(classroomAverage.percent) || classroomAverage.percent < 0 || !Number.isFinite(Date.parse(classroomAverage.at)))) return res.sendStatus(400);
+  save('report-card-luke', {term, marks, classroomAverage});
   res.sendStatus(204);
 });
 const kidView = k => ({ ...k, publishedReport: k.id === 'luke' ? load('report-card-luke', null) : null, review: k.id === 'luke' ? load('reviewed-homework-luke', null) : null, connected: isConnected(k.id), data: kidState(k.id) });
