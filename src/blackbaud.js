@@ -126,8 +126,8 @@ async function login(page, base, user, pass, kid) {
 }
 
 export function hasCreds(kid) {
-  const { user, pass } = kidCreds(kid);
-  return !!(user && pass);
+  // Blackbaud signs these accounts in with an emailed code, so only the email is required.
+  return !!kidCreds(kid).user;
 }
 
 export async function fetchBlackbaud(kid) {
