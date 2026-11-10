@@ -169,7 +169,25 @@ async function runKid(kid, state, alertsSent) {
 
   // ---- morning plan email (first run of the day) ----
   const today = dayKey(new Date());
-  if (out.lastDigest !== today && etHour() < 11) {
+  const luke = kid.id === 'luke';
+  const saturday = luke && etWeekday() === 'Sat';
+  const homework = out.homework || [];
+  const sorted = items => items.slice().sort((a, b) => new Date(a.due) - new Date(b.due));
+  const listWork = items => '<ul>' + sorted(items).map(i => '<li>' + esc(dayLabel(i.due)) + ' · ' + esc(i.course) + ': <a href="' + esc(i.link) + '">' + esc(i.title) + '</a> (' + esc(i.noTurnIn ? 'check completion' : i.status === 'todo' ? 'not turned in' : i.status) + ')</li>').join('') + '</ul>';
+  // Use Eastern calendar dates across daylight-saving changes.
+  const addDays = (day, n) => new Date(Date.parse(day + 'T12:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+  const freshHomework = !out.errors.some(e => e.startsWith('Google Classroom:') || e.includes('not connected'));
+  if (saturday && freshHomework && out.weekPlan?.sent !== today) {
+    const end = addDays(today, 7);
+    const week = homework.filter(i => i.due && dayKey(i.due) >= today && dayKey(i.due) <= end);
+    const html = '<h3>Luke’s week-ahead homework plan</h3><p>Work due today through ' + esc(dayLabel(end + 'T12:00:00Z')) + ', including work already turned in.</p>' +
+      (week.length ? listWork(week) : '<p>No dated assignments listed for this period.</p>') +
+      (out.missing.length ? '<h4>Earlier missing work</h4>' + listWork(out.missing.filter(i => i.due && dayKey(i.due) < today)) : '');
+    await email(kidAlertEmails(kid), 'Luke’s Saturday homework plan – ' + dayLabel(new Date()), html);
+    out.weekPlan = { sent: today, end, seen: week.map(i => i.id) };
+    out.lastDigest = today;
+  }
+  if (!saturday && out.lastDigest !== today && etHour() < 11) {
     const plan = out.plan.slice(0, 7);
     const html = `<h3>${esc(kid.name)} – homework plan</h3>` +
       plan.map(d => `<p><b>${esc(d.label)}</b></p><ul>${d.items.map(i => `<li>${esc(i.course)}: ${esc(i.title)} <i>(due ${esc(dayLabel(i.due))})</i></li>`).join('')}</ul>`).join('') +
@@ -190,11 +208,15 @@ async function runKid(kid, state, alertsSent) {
     ? `<li>• <b>${esc(i.course)}</b>: <a href="${esc(i.link)}">${esc(i.title)}</a> <i>(Blackbaud – check it's done)</i></li>`
     : `<li>${i.status === 'todo' ? '☐' : '☑'} <b>${esc(i.course)}</b>: <a href="${esc(i.link)}">${esc(i.title)}</a> <i>(${esc(i.status === 'todo' ? 'not turned in' : i.status)})</i></li>`;
 
-  if (etHour() >= 16 && out.lastTomorrowEmail !== today) {
-    const html = `<h3>${esc(kid.name)} – homework due ${esc(label)}</h3>` +
+  if ((!luke || freshHomework) && etHour() >= 16 && out.lastTomorrowEmail !== today) {
+    const baseline = luke && out.weekPlan;
+    const additions = baseline && today <= baseline.end ? homework.filter(i => i.due && dayKey(i.due) >= baseline.sent && dayKey(i.due) <= baseline.end && !baseline.seen.includes(i.id)) : [];
+    const weekUpdate = baseline && today <= baseline.end ? (additions.length ? '<h3>Added to this week since your last email</h3>' + listWork(additions) : '<p>No new assignments added to your Saturday plan since the last check.</p>') : '';
+    const html = weekUpdate + `<h3>${esc(kid.name)} – homework due ${esc(label)}</h3>` +
       (dueNext.length ? `<ul>${dueNext.map(row).join('')}</ul>` : '<p>Nothing due in Google Classroom or Blackbaud.</p>') +
       `<p>Anything not turned in to Google Classroom by 8pm will trigger an alert.</p><p><a href="${dash}">Dashboard</a></p>`;
     await email(kidAlertEmails(kid), `${kid.name}: ${dueNext.length} due ${label}`, html);
+    if (additions.length) baseline.seen.push(...additions.map(i => i.id));
     out.lastTomorrowEmail = today;
   }
 
