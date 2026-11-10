@@ -10,17 +10,50 @@ function gradeClass(raw, T) {
   return 'bad';
 }
 
-function reviewedScoreTable(review) {
-  if (!review?.rows?.length) return '';
-  const groups = new Map();
-  for (const row of review.rows) {
-    if (!groups.has(row.course)) groups.set(row.course, []);
-    groups.get(row.course).push(row);
+function courseKey(name) {
+  const key = String(name || '').split(' - ')[0].trim().toLowerCase();
+  return key === 'math' ? 'mathematics' : key;
+}
+
+function scorecardGrades(k) {
+  const grades = (k.data?.grades || []).map(g => ({ ...g }));
+  function course(name) {
+    let g = grades.find(row => courseKey(row.course) === courseKey(name));
+    if (!g) {
+      g = { course: name };
+      grades.push(g);
+    }
+    return g;
   }
-  const date = new Date(review.checked + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone:'UTC', month:'long', day:'numeric', year:'numeric' });
-  const tables = Array.from(groups, ([course, rows]) =>
-    `<details><summary>${esc(course)} (${rows.length})</summary><table><tr><th>Assignment</th><th>Quarter</th><th>Score</th></tr>${rows.map(r => `<tr><td>${esc(r.title)}</td><td>${esc(r.term || '—')}</td><td>${esc(r.earned)}/${esc(r.possible)}</td></tr>`).join('')}</table></details>`).join('');
-  return `<section class="reviewed-scores"><h3>Google Classroom assignment scores</h3><p>${review.rows.length} scores · Checked ${esc(date)}</p>${tables}</section>`;
+  for (const mark of k.publishedReport?.marks || []) {
+    course(mark.course).reportLetter ||= mark.grade;
+  }
+  const avg = k.publishedReport?.classroomAverage;
+  if (avg && Number.isFinite(avg.percent)) {
+    const g = course(avg.course);
+    g.average = avg;
+    if (g.grade == null && !g.letter) {
+      g.grade = avg.percent;
+      g.source = 'Google Classroom' + (avg.period ? ' · ' + avg.period : '');
+    }
+  }
+  for (const score of k.reviewedScores?.rows || []) {
+    const g = course(score.course);
+    (g.reviewedRows ||= []).push(score);
+  }
+  return grades;
+}
+
+function scoreDetails(g, checked) {
+  const rows = g.reviewedRows || [];
+  const avg = g.average;
+  if (!rows.length && !avg) return '';
+  const weights = (avg?.weights || []).map(w => esc(w.name) + ' ' + esc(w.weight) + '%').join(' · ');
+  return `<tr><td colspan="5"><details class="reviewed-scores"><summary>${esc(g.course.split(' - ')[0])} · ${rows.length} assignment scores</summary>
+    ${avg ? `<p>Classroom average${avg.period ? ' for ' + esc(avg.period) : ''}: <b>${esc(avg.percent)}%</b> · checked ${esc(fmtDay(avg.at))}</p>` : ''}
+    ${weights ? '<p>Grade calculation: ' + weights + '</p>' : ''}
+    ${rows.length ? `<p class="muted">Google Classroom · checked ${esc(checked)}</p><table><tr><th>Assignment</th><th>Quarter</th><th>Score</th></tr>${rows.map(r => `<tr><td>${esc(r.title)}</td><td>${esc(r.term || '—')}</td><td>${esc(r.earned)}/${esc(r.possible)}</td></tr>`).join('')}</table>` : ''}
+  </details></td></tr>`;
 }
 
 function kidSection(k, T) {
@@ -28,7 +61,7 @@ function kidSection(k, T) {
   const hw = (d.homework || []).filter(i => i.due && new Date(i.due) > Date.now() - 14 * 86400000)
     .sort((a, b) => new Date(a.due) - new Date(b.due));
   const counts = hw.reduce((m, i) => (m[i.status] = (m[i.status] || 0) + 1, m), {});
-  const grades = d.grades || [];
+  const grades = scorecardGrades(k);
   const noMarks = grades.length > 0 && grades.every(g => g.grade == null && !g.letter);
   const waiting = !d.classroomAt && !hw.length;
   const review = waiting && k.review;
@@ -40,9 +73,6 @@ function kidSection(k, T) {
   ${!k.connected ? `<div class="banner">Google Classroom isn't connected. <a class="btn" href="/connect/${esc(k.id)}">Connect ${esc(k.name)}'s Google account</a></div>` : ''}
   ${(d.errors || []).filter(e => !e.includes('not connected')).map(e => `<div class="banner err">${esc(e)}</div>`).join('')}
 
-  ${waiting && k.id === 'luke' ? `<h3>Luke’s upcoming homework</h3>
-  ${review ? `<p>Checked ${esc(fmt(review.at))} Eastern. Status is as of that check.</p><ul>${review.items.map(i => `<li><b>${esc(i.due)}</b> · ${esc(i.course)}: <a href="${esc(i.link)}">${esc(i.title)}</a> · ${esc(i.status)}</li>`).join('')}</ul>` : ''}
-  <p>For current status, open <a href="https://classroom.google.com/a/not-turned-in/all">Assigned</a> or <a href="https://classroom.google.com/a/missing/all">Missing</a> in Luke’s Google Classroom.</p>` : ''}
   <div class="tiles">
     <div class="tile"><div class="n ${belowA ? 'badt' : 'okt'}">${noMarks ? '—' : belowA}</div><div>classes below an A</div></div>
     <div class="tile"><div class="n ${counts.missing ? 'badt' : 'okt'}">${waiting ? '—' : counts.missing || 0}</div><div>missing</div></div>
@@ -50,17 +80,18 @@ function kidSection(k, T) {
     <div class="tile"><div class="n">${waiting ? '—' : (counts.submitted || 0) + (counts.late || 0)}</div><div>turned in (14 days)</div></div>
   </div>
 
-  ${k.publishedReport ? `<h3>Wheeler report card · ${esc(k.publishedReport.term)}</h3><table><tr><th>Course</th><th>Published grade</th></tr>${k.publishedReport.marks.map(m => `<tr><td>${esc(m.course)}</td><td><strong>${esc(m.grade)}</strong></td></tr>`).join('')}</table>` : ''}
-  ${k.publishedReport?.classroomAverage ? `<h3>Google Classroom average</h3><p><strong>${esc(k.publishedReport.classroomAverage.course)}: ${esc(k.publishedReport.classroomAverage.percent)}%</strong> · checked ${esc(fmtDay(k.publishedReport.classroomAverage.at))}. This is a dated reading from the class page.</p>` : ''}
-  ${reviewedScoreTable(k.reviewedScores)}
-  <h3>${k.id === 'luke' ? 'Current Blackbaud grades' : 'Grade scorecard'}</h3>
+  <h3>Grade scorecard</h3>
+  ${k.publishedReport ? '<p class="muted">A dash means no current grade has been published. Tap a class’s assignment scores for details.</p>' : ''}
   ${noMarks ? `<p>Blackbaud synced ${grades.length} classes. Wheeler supplied no current marks for these classes.</p>` : ''}
-  <table><tr><th>Class</th><th>Teacher</th><th>Current grade</th><th>Letter</th><th>${esc(d.reportTerm || '')} report card</th></tr>
+  <table><tr><th>Class</th><th>Teacher</th><th>Current grade</th><th>Letter</th><th>${esc(k.publishedReport?.term || d.reportTerm || '')} report card</th></tr>
   ${grades.length ? grades.map(g => `<tr><td>${esc(g.course)}${g.source ? ` <span class="muted">(${esc(g.source)})</span>` : ''}</td><td>${esc(g.teacher)}</td>
-    <td class="g ${gradeClass(g.grade, T)}">${g.grade != null ? esc(g.grade) + '% <span class="muted">→ ' + Math.round(g.grade) + '</span>' : '—'}</td><td class="g ${g.grade == null && g.letter ? (/^A\+?$/.test(g.letter) ? 'ok' : 'warn') : ''}">${esc(g.letter || '')}</td><td>${esc(g.reportLetter || '')}</td></tr>`).join('')
+    <td class="g ${gradeClass(g.grade, T)}">${g.grade != null ? esc(g.grade) + '% <span class="muted">→ ' + Math.round(g.grade) + '</span>' : '—'}</td><td class="g ${g.grade == null && g.letter ? (/^A\+?$/.test(g.letter) ? 'ok' : 'warn') : ''}">${esc(g.letter || '')}</td><td>${esc(g.reportLetter || '')}</td></tr>${scoreDetails(g, k.reviewedScores?.checked)}`).join('')
     : '<tr><td colspan="5" class="muted">No grades pulled yet</td></tr>'}
   </table>
 
+  ${waiting && k.id === 'luke' ? `<h3>Luke’s upcoming homework</h3>
+  ${review ? `<p>Checked ${esc(fmt(review.at))} Eastern. Status is as of that check.</p><ul>${review.items.map(i => `<li><b>${esc(i.due)}</b> · ${esc(i.course)}: <a href="${esc(i.link)}">${esc(i.title)}</a> · ${esc(i.status)}</li>`).join('')}</ul>` : ''}
+  <p>For current status, open <a href="https://classroom.google.com/a/not-turned-in/all">Assigned</a> or <a href="https://classroom.google.com/a/missing/all">Missing</a> in Luke’s Google Classroom.</p>` : ''}
   <h3>Homework plan (next 2 weeks)</h3>
   <div class="plan">${(d.plan || []).length ? d.plan.map(day => `<div class="day"><div class="dl">${esc(day.label)}</div>
     ${day.items.map(i => `<div class="it"><a href="${esc(i.link)}" target="_blank">${esc(i.title)}</a><div class="muted">${esc(i.course)} · due ${esc(fmtDay(i.due))}</div></div>`).join('')}</div>`).join('')
