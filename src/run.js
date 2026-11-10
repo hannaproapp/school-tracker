@@ -58,8 +58,8 @@ async function runKid(kid, state, alertsSent) {
     out.grades = bb.courses.map(c => ({ ...c, letter: c.grade != null ? toLetter(c.grade) : c.letter }));
     out.schoolYear = bb.year;
     out.gradesAt = bb.at;
-    if (Date.now() - new Date(bb.at) > 36 * 3600000) out.errors.push(`Blackbaud: grades not refreshed since ${new Date(bb.at).toLocaleString('en-US', { timeZone: 'America/New_York' })}. Check that ${kid.name} is still signed into Blackbaud in Chrome.`);
-  } else out.errors.push(`Blackbaud: no grades received yet (daily Chrome check)`);
+    if (Date.now() - new Date(bb.at) > 36 * 3600000) out.errors.push(`Blackbaud: grades not refreshed since ${new Date(bb.at).toLocaleString('en-US', { timeZone: 'America/New_York' })}. Check that ${kid.name} is still signed into Blackbaud on the family computer.`);
+  } else out.errors.push(`Blackbaud: no grades received yet (daily check on the family computer)`);
 
   // Latest Blackbaud report-card letters (kids.json reportCards). Used as the grade for
   // classes with no running Blackbaud gradebook (e.g. Chinese).

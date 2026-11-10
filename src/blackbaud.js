@@ -158,8 +158,9 @@ async function login(page, base, user, pass, kid) {
 }
 
 export function hasCreds(kid) {
-  // Blackbaud signs these accounts in with an emailed code, so only the email is required.
-  return !!kidCreds(kid).user;
+  // Off: Wheeler's Blackbaud sign-in ends at Google SSO, which an unattended server can't
+  // complete. Grades come from the daily check on the family computer (POST /ingest/<kid>).
+  return process.env.BB_SERVER_LOGIN === '1' && !!kidCreds(kid).user;
 }
 
 export async function fetchBlackbaud(kid) {
