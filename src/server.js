@@ -60,6 +60,55 @@ if (config.ntfyTopic) {
   };
 }
 const checkGradeDelivery = makeGradeMonitor({ kids: config.kids.filter(k => ['leo', 'tyler', 'luke'].includes(k.id)), load, save, channels: gradeChannels });
+
+const easternDay = date => date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+let notifyingLuke = false;
+async function alertLuke(reason) {
+  if (notifyingLuke) return;
+  notifyingLuke = true;
+  try {
+    const day = easternDay(new Date());
+    const prior = load('luke-classroom-alert', {});
+    const sent = prior.day === day ? prior : { day };
+    for (const [name, deliver] of Object.entries(gradeChannels)) {
+      if (sent[name]) continue;
+      try {
+        await deliver('Luke: daily Classroom check failed', reason + ' His scores and homework may be out of date.');
+        sent[name] = true;
+        save('luke-classroom-alert', sent);
+      } catch (error) { console.error('Luke Classroom alert failed', name, error.name); }
+    }
+  } finally { notifyingLuke = false; }
+}
+
+app.post('/kid/luke/daily-check', authed, async (_req, res) => {
+  const start = Date.now();
+  const day = easternDay(new Date(start));
+  let reason;
+  if (!isConnected('luke')) {
+    reason = 'School Tracker is not connected to Luke’s Google Classroom. Complete Wheeler’s app approval and connect Luke on his dashboard.';
+  } else {
+    await runKidById('luke');
+    const stamp = Date.parse(kidState('luke')?.classroomAt);
+    if (!(stamp >= start)) reason = 'The tracker could not confirm a fresh Google Classroom import for Luke.';
+  }
+  save('luke-classroom-check', { day, at: new Date().toISOString(), reason });
+  if (reason) {
+    await alertLuke(reason);
+    return res.status(409).json({ok:false, reason});
+  }
+  res.json({ok:true});
+});
+
+async function watchLukeCheck() {
+  const now = new Date();
+  const time = now.toLocaleTimeString('en-GB', {timeZone:'America/New_York', hour:'2-digit', minute:'2-digit'});
+  if (time < '15:50') return;
+  const check = load('luke-classroom-check', {});
+  if (check.day !== easternDay(now)) await alertLuke('The tracker did not receive today’s scheduled Classroom check from the Mac by 3:50pm Eastern.');
+  else if (check.reason) await alertLuke(check.reason);
+}
+
 app.get('/health', (_req, res) => res.set('X-Grade-Monitor', Object.keys(gradeChannels).join(',') || 'unconfigured').send('ok'));
 
 // Userscript install link. The path carries the ingest key (not the dashboard key), so it can be
@@ -232,6 +281,7 @@ app.listen(config.port, () => {
   console.log(`listening on ${config.port}; schedule "${config.cron}" ET`);
   cron.schedule('* * * * *', () => checkGradeDelivery().catch(console.error), { timezone: 'America/New_York' });
   checkGradeDelivery().catch(console.error);
+  cron.schedule('* * * * *', () => watchLukeCheck().catch(console.error), { timezone: 'America/New_York' });
   cron.schedule('0 16 * * *', () => runAll().catch(console.error), { timezone: 'America/New_York' }); // Daily due-tomorrow emails
   cron.schedule(config.cron, () => runAll().catch(console.error), { timezone: 'America/New_York' });
   cron.schedule('55 15 * * 5', () => sendScorecards().catch(console.error), { timezone: 'America/New_York' }); // Fridays 3:55pm
