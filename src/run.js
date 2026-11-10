@@ -128,6 +128,25 @@ async function runKid(kid, state, alertsSent) {
   }
   out.recentAlerts = [...alerts.map(a => ({ at: new Date().toISOString(), text: a.text })), ...(prev.recentAlerts || [])].slice(0, 50);
 
+  // ---- new assignments posted in Classroom since the last check ----
+  if (out.homework?.length) {
+    const seen = load(`seen-${kid.id}`, null);
+    const ids = out.homework.map(i => i.id);
+    if (seen) {
+      const known = new Set(seen);
+      const fresh = out.homework.filter(i => !known.has(i.id) && i.status === 'todo' && i.due && !/CLASS OF|Wheels|Advisory/i.test(i.course))
+        .sort((a, b) => new Date(a.due) - new Date(b.due));
+      if (fresh.length) {
+        const dash = `${config.baseUrl}/kid/${kid.id}?key=${encodeURIComponent(config.dashboardKey)}`;
+        const html = `<p><b>New assignment${fresh.length > 1 ? 's' : ''} added to Google Classroom for ${esc(kid.name)}:</b></p><ul>${fresh.map(i => `<li><b>${esc(i.course)}</b>: <a href="${esc(i.link)}">${esc(i.title)}</a>, due <b>${esc(dayLabel(i.due))}</b></li>`).join('')}</ul><p>If you already worked ahead this week, add ${fresh.length > 1 ? 'these' : 'this'} to your plan.</p><p><a href="${dash}">Dashboard</a></p>`;
+        await email(kidAlertEmails(kid), `🆕 ${kid.name}: ${fresh.length} new assignment${fresh.length > 1 ? 's' : ''} posted`, html);
+        await push(`${kid.name}: ${fresh.length} new assignment${fresh.length > 1 ? 's' : ''}`, fresh.map(i => `${i.course}: ${i.title} (due ${dayLabel(i.due)})`).join('\n').slice(0, 3500), dash);
+        out.recentAlerts = [{ at: new Date().toISOString(), text: `New: ${fresh.map(i => `${i.course} – ${i.title} (due ${dayLabel(i.due)})`).join('; ')}` }, ...(out.recentAlerts || [])].slice(0, 50);
+      }
+    }
+    save(`seen-${kid.id}`, [...new Set([...(seen || []), ...ids])]);
+  }
+
   // ---- morning plan email (first run of the day) ----
   const today = dayKey(new Date());
   if (out.lastDigest !== today && etHour() < 11) {

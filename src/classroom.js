@@ -102,6 +102,7 @@ export async function fetchClassroom(kidId) {
         pct: graded && cw.maxPoints ? Math.round((s.assignedGrade / cw.maxPoints) * 1000) / 10 : null,
         updated: s.updateTime || cw.updateTime,
         category: cw.gradeCategory?.id || null,
+        created: cw.creationTime || null,
         courseId: course.id,
       });
     }
