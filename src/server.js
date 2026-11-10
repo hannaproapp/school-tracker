@@ -121,7 +121,17 @@ app.get('/about', (_req, res) => res.send(page('Kalus School Tracker', '<p>A pri
 app.get('/privacy', (_req, res) => res.send(page('Privacy Policy', '<p>This app is used only by the Kalus family. With a student\'s permission it reads that student\'s own Google Classroom courses, assignments and submission status (read-only). The data is stored on a private server, shown only to that student and their parents, and used only to build homework plans and grade alerts. It is never sold, shared with third parties, or used for advertising. Access can be removed at any time at myaccount.google.com/permissions, and stored data is deleted on request.</p>')));
 app.get('/terms', (_req, res) => res.send(page('Terms of Service', '<p>Private family tool provided as-is for the Kalus family. No other use is permitted.</p>')));
 
-const kidView = k => ({ ...k, connected: isConnected(k.id), data: kidState(k.id) });
+// An explicitly reviewed list can be shown before the first Classroom import.
+app.post('/kid/luke/reviewed-homework', authed, express.json({limit:'24kb'}), (req, res) => {
+  const { items, at } = req.body || {};
+  const stamp = Date.parse(at);
+  if (!Number.isFinite(stamp) || stamp > Date.now() + 60000 || !Array.isArray(items) || items.length > 100 ||
+      !items.every(i => i && ['due','course','title','link','status'].every(f => typeof i[f] === 'string' && i[f].length > 0 && i[f].length <= 500) &&
+        /^https:\/\/classroom\.google\.com\/c\/[A-Za-z0-9_-]+\/a\/[A-Za-z0-9_-]+\/details$/.test(i.link))) return res.sendStatus(400);
+  save('reviewed-homework-luke', {at:new Date(stamp).toISOString(),items});
+  res.sendStatus(204);
+});
+const kidView = k => ({ ...k, review: k.id === 'luke' ? load('reviewed-homework-luke', null) : null, connected: isConnected(k.id), data: kidState(k.id) });
 
 app.get('/', authed, (_req, res) => {
   res.send(dashboardHtml(config.kids.map(kidView), config.aThreshold, null));
