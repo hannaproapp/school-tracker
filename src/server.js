@@ -2,13 +2,17 @@ import express from 'express';
 import cron from 'node-cron';
 import { config } from './config.js';
 import { authUrl, handleCallback, isConnected } from './classroom.js';
-import { runAll, runKidById, kidState, checkSkippedGradePulls } from './run.js';
+import { runAll, runKidById, kidState } from './run.js';
 import { buildScorecard, sendScorecards } from './scorecard.js';
 import { save, load } from './store.js';
 import { normalizeBlackbaud } from './grades.js';
 import { dashboardHtml } from './dashboard.js';
+import { ingestKey, userscript } from './userscript.js';
+import { feedUrl, setFeedUrl, fetchAssignmentFeed } from './ical.js';
 
 const app = express();
+app.set('trust proxy', true);
+const trackerBase = req => config.baseUrl || `${req.protocol}://${req.get('host')}`;
 
 const page = (title, body) => `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><body style="font:16px/1.5 system-ui;max-width:720px;margin:40px auto;padding:0 20px"><h1>${title}</h1>${body}</body>`;
 
@@ -20,13 +24,14 @@ function authed(req, res, next) {
   next();
 }
 
-// Grades pushed from the daily Chrome check running in the student's signed-in Blackbaud tab.
+// Grades pushed by the School Tracker userscript running in the student's signed-in Blackbaud tab
+// (or by collector.js run by hand). Accepts the ingest key or the dashboard key.
 app.options('/ingest/:kid', (_req, res) => {
   res.set({ 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' }).sendStatus(204);
 });
 app.post('/ingest/:kid', express.text({ type: '*/*', limit: '5mb' }), (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
-  if (req.query.key !== config.dashboardKey) return res.status(401).send('bad key');
+  if (!config.dashboardKey || ![config.dashboardKey, ingestKey()].includes(req.query.key)) return res.status(401).send('bad key');
   const kid = config.kids.find(k => k.id === req.params.kid);
   if (!kid) return res.status(404).send('unknown kid');
   let raw;
@@ -39,6 +44,51 @@ app.post('/ingest/:kid', express.text({ type: '*/*', limit: '5mb' }), (req, res)
 });
 
 app.get('/health', (_req, res) => res.send('ok'));
+
+// Userscript install link. The path carries the ingest key (not the dashboard key), so it can be
+// opened in the kids' Chrome; Tampermonkey offers to install any URL ending in .user.js.
+app.get('/sync/:key/school-tracker.user.js', (req, res) => {
+  if (!config.dashboardKey || req.params.key !== ingestKey()) return res.status(404).send('not found');
+  res.type('text/javascript').send(userscript(trackerBase(req)));
+});
+
+// Setup page: userscript install steps and each kid's Blackbaud assignment feed.
+const setupPage = (req, msg = '') => {
+  const install = `${trackerBase(req)}/sync/${ingestKey()}/school-tracker.user.js`;
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const when = d => d ? new Date(d).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'never';
+  return page('School Tracker setup', `${msg ? `<p style="background:#eef7ee;padding:10px;border-radius:8px">${esc(msg)}</p>` : ''}
+  <h2>1. Grades: sync script (once per kid's Chrome)</h2>
+  <ol>
+    <li>In the Chrome where the kid is signed into Blackbaud, install the <a href="https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo" target="_blank">Tampermonkey</a> extension. In Chrome's Extensions page, turn on <b>Developer mode</b> (or <b>Allow User Scripts</b> on Tampermonkey's details page) so it can run scripts.</li>
+    <li>Open this link in that same Chrome and click <b>Install</b>:<br><input readonly value="${esc(install)}" style="width:100%;font:13px monospace;padding:6px" onclick="this.select()"></li>
+    <li>Have the kid open Blackbaud. A small "Grades synced to School Tracker" note appears in the corner within a few seconds. After that it syncs automatically (at most every 3 hours) whenever Blackbaud is open.</li>
+  </ol>
+  <p>Last grades received: ${config.kids.map(k => `${esc(k.name)} ${esc(when(load(`bb-${k.id}`, null)?.at))}`).join(' · ')}</p>
+  <h2>2. Homework: Blackbaud assignment feed</h2>
+  <p>Signed in as the kid, open Blackbaud's <b>Assignment Center</b>, click the calendar-feed (subscribe / iCal) icon, copy the link, and paste it here. The tracker reads it directly, three times a day. It adds Blackbaud assignments and due dates to the plan (not grades or turned-in status).</p>
+  ${config.kids.map(k => `<form method="post" action="/kid/${esc(k.id)}/ical" style="margin:12px 0">
+    <b>${esc(k.name)}</b> ${feedUrl(k) ? '<span style="color:#1f7a4d">connected</span>' : '<span style="color:#b26a00">not set</span>'}<br>
+    <input name="url" placeholder="webcal://…/podium/feed/iCal.aspx?…" style="width:75%;padding:6px" required> <button>Save</button></form>`).join('')}`);
+};
+app.get('/setup', authed, (req, res) => res.send(setupPage(req)));
+app.post('/kid/:kid/ical', authed, express.urlencoded({ extended: false }), async (req, res) => {
+  const kid = config.kids.find(k => k.id === req.params.kid);
+  if (!kid) return res.status(404).send('Unknown kid');
+  let msg;
+  try {
+    setFeedUrl(kid, req.body.url);
+    const items = await fetchAssignmentFeed(kid);
+    msg = `${kid.name}'s feed saved: ${items.length} assignments in the next 6 weeks / last 3 weeks.`;
+    runKidById(kid.id).catch(console.error);
+  } catch (e) { msg = `${kid.name}: ${e.message}`; }
+  res.send(setupPage(req, msg));
+});
+app.get('/debug/:kid/ical', authed, async (req, res) => {
+  const kid = config.kids.find(k => k.id === req.params.kid);
+  if (!kid) return res.status(404).send('Unknown kid');
+  try { res.json(await fetchAssignmentFeed(kid)); } catch (e) { res.status(500).send(e.message); }
+});
 
 app.get('/about', (_req, res) => res.send(page('Kalus School Tracker', '<p>A private family tool that shows our own children their Google Classroom assignments, due dates and turned-in status, and their school grades, and alerts parents when work is missing or a grade drops. Not available to the public.</p>')));
 app.get('/privacy', (_req, res) => res.send(page('Privacy Policy', '<p>This app is used only by the Kalus family. With a student\'s permission it reads that student\'s own Google Classroom courses, assignments and submission status (read-only). The data is stored on a private server, shown only to that student and their parents, and used only to build homework plans and grade alerts. It is never sold, shared with third parties, or used for advertising. Access can be removed at any time at myaccount.google.com/permissions, and stored data is deleted on request.</p>')));
@@ -124,7 +174,5 @@ app.post('/run/:kid', authed, (req, res) => {
 app.listen(config.port, () => {
   console.log(`listening on ${config.port}; schedule "${config.cron}" ET`);
   cron.schedule(config.cron, () => runAll().catch(console.error), { timezone: 'America/New_York' });
-  cron.schedule('55 15 * * 5', () => sendScorecards().catch(console.error), { timezone: 'America/New_York' }); // Fridays 3:55pm, after the 2:47pm grade pull
-  cron.schedule('35 6 * * *', () => checkSkippedGradePulls('5:47am').catch(console.error), { timezone: 'America/New_York' });
-  cron.schedule('35 15 * * *', () => checkSkippedGradePulls('2:47pm').catch(console.error), { timezone: 'America/New_York' });
+  cron.schedule('55 15 * * 5', () => sendScorecards().catch(console.error), { timezone: 'America/New_York' }); // Fridays 3:55pm
 });

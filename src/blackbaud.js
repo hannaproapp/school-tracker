@@ -159,7 +159,7 @@ async function login(page, base, user, pass, kid) {
 
 export function hasCreds(kid) {
   // Off: Wheeler's Blackbaud sign-in ends at Google SSO, which an unattended server can't
-  // complete. Grades come from the daily check on the family computer (POST /ingest/<kid>).
+  // complete. Grades come from the School Tracker userscript in each kid's Chrome (POST /ingest/<kid>).
   return process.env.BB_SERVER_LOGIN === '1' && !!kidCreds(kid).user;
 }
 

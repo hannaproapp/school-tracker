@@ -1,6 +1,6 @@
 import fs from 'fs';
-// Kids are defined in kids.json (no secrets). Blackbaud grades come from a daily check
-// in the family Chrome where each kid is signed into Blackbaud. Google Classroom
+// Kids are defined in kids.json (no secrets). Blackbaud grades come from the School Tracker
+// userscript in each kid's Chrome (runs whenever Blackbaud is open). Google Classroom
 // tokens are stored per kid on the volume after that kid approves access.
 const env = process.env;
 const kidsFile = new URL('../kids.json', import.meta.url);
@@ -13,6 +13,7 @@ export const config = {
   dashboardKey: env.DASHBOARD_KEY || '',
   cron: env.RUN_CRON || '0 6,15,20 * * *', // 6am, 3pm, 8pm ET
   aThreshold: Number(env.A_THRESHOLD || 93),
+  gradeStaleHours: Number(env.GRADE_STALE_HOURS || 48), // alert when no grade sync for this long
   planDays: Number(env.PLAN_DAYS || 14),
   google: {
     clientId: env.GOOGLE_CLIENT_ID,

@@ -4,6 +4,7 @@ import { fetchClassroom, isConnected } from './classroom.js';
 import { toLetter, schoolRound } from './grades.js';
 import { fetchBlackbaud, hasCreds } from './blackbaud.js';
 import { recordSnapshot } from './scorecard.js';
+import { fetchAssignmentFeed, feedUrl, mergeHomework } from './ical.js';
 import { email, push } from './notify.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -48,6 +49,16 @@ async function runKid(kid, state, alertsSent) {
     } catch (e) { out.errors.push(`Google Classroom: ${e.message}`); }
   } else out.errors.push('Google Classroom not connected yet');
 
+  // Blackbaud assignment calendar feed: adds assignments that aren't in Classroom.
+  if (feedUrl(kid)) {
+    try {
+      out.bbAssignments = await fetchAssignmentFeed(kid);
+      out.bbAssignmentsAt = new Date().toISOString();
+    } catch (e) { out.errors.push(`Blackbaud assignment feed: ${e.message}`); }
+  }
+  const classroomHw = (out.homework || []).filter(i => i.source !== 'blackbaud');
+  if (classroomHw.length || out.bbAssignments?.length) out.homework = mergeHomework(classroomHw, out.bbAssignments);
+
   let bbError = null;
   if (hasCreds(kid)) {
     try { await fetchBlackbaud(kid); }
@@ -59,8 +70,8 @@ async function runKid(kid, state, alertsSent) {
     out.grades = bb.courses.map(c => ({ ...c, letter: c.grade != null ? toLetter(c.grade) : c.letter }));
     out.schoolYear = bb.year;
     out.gradesAt = bb.at;
-    if (Date.now() - new Date(bb.at) > 36 * 3600000) out.errors.push(`Blackbaud: grades not refreshed since ${new Date(bb.at).toLocaleString('en-US', { timeZone: 'America/New_York' })}. Check that ${kid.name} is still signed into Blackbaud on the family computer.`);
-  } else out.errors.push(`Blackbaud: no grades received yet (daily check on the family computer)`);
+    if (Date.now() - new Date(bb.at) > config.gradeStaleHours * 3600000) out.errors.push(`Blackbaud: grades not refreshed since ${new Date(bb.at).toLocaleString('en-US', { timeZone: 'America/New_York' })}. Grades sync when ${kid.name} opens Blackbaud in Chrome with the School Tracker sync script installed.`);
+  } else out.errors.push(`Blackbaud: no grades received yet. Install the sync script (see /setup), then have ${kid.name} open Blackbaud in Chrome.`);
 
   // Latest Blackbaud report-card letters (kids.json reportCards). Used as the grade for
   // classes with no running Blackbaud gradebook (e.g. Chinese).
@@ -130,15 +141,21 @@ async function runKid(kid, state, alertsSent) {
 
   // ---- new assignments posted in Classroom since the last check ----
   if (out.homework?.length) {
-    const seen = load(`seen-${kid.id}`, null);
+    let seen = load(`seen-${kid.id}`, null);
     const ids = out.homework.map(i => i.id);
+    // First time the Blackbaud feed is connected: treat its existing assignments as already seen.
+    const bbIds = out.homework.filter(i => i.source === 'blackbaud').map(i => i.id);
+    if (seen && bbIds.length && !load(`ical-seeded-${kid.id}`, false)) {
+      seen = [...seen, ...bbIds];
+      save(`ical-seeded-${kid.id}`, true);
+    }
     if (seen) {
       const known = new Set(seen);
       const fresh = out.homework.filter(i => !known.has(i.id) && i.status === 'todo' && i.due && !/CLASS OF|Wheels|Advisory/i.test(i.course))
         .sort((a, b) => new Date(a.due) - new Date(b.due));
       if (fresh.length) {
         const dash = `${config.baseUrl}/kid/${kid.id}?key=${encodeURIComponent(config.dashboardKey)}`;
-        const html = `<p><b>New assignment${fresh.length > 1 ? 's' : ''} added to Google Classroom for ${esc(kid.name)}:</b></p><ul>${fresh.map(i => `<li><b>${esc(i.course)}</b>: <a href="${esc(i.link)}">${esc(i.title)}</a>, due <b>${esc(dayLabel(i.due))}</b></li>`).join('')}</ul><p>If you already worked ahead this week, add ${fresh.length > 1 ? 'these' : 'this'} to your plan.</p><p><a href="${dash}">Dashboard</a></p>`;
+        const html = `<p><b>New assignment${fresh.length > 1 ? 's' : ''} posted for ${esc(kid.name)}:</b></p><ul>${fresh.map(i => `<li><b>${esc(i.course)}</b>: <a href="${esc(i.link)}">${esc(i.title)}</a>, due <b>${esc(dayLabel(i.due))}</b> <i>(${i.source === 'blackbaud' ? 'Blackbaud' : 'Google Classroom'})</i></li>`).join('')}</ul><p>If you already worked ahead this week, add ${fresh.length > 1 ? 'these' : 'this'} to your plan.</p><p><a href="${dash}">Dashboard</a></p>`;
         await email(kidAlertEmails(kid), `🆕 ${kid.name}: ${fresh.length} new assignment${fresh.length > 1 ? 's' : ''} posted`, html);
         await push(`${kid.name}: ${fresh.length} new assignment${fresh.length > 1 ? 's' : ''}`, fresh.map(i => `${i.course}: ${i.title} (due ${dayLabel(i.due)})`).join('\n').slice(0, 3500), dash);
         out.recentAlerts = [{ at: new Date().toISOString(), text: `New: ${fresh.map(i => `${i.course} – ${i.title} (due ${dayLabel(i.due)})`).join('; ')}` }, ...(out.recentAlerts || [])].slice(0, 50);
@@ -166,18 +183,20 @@ async function runKid(kid, state, alertsSent) {
     .sort((a, b) => new Date(a.due) - new Date(b.due));
   const dash = `${config.baseUrl}/kid/${kid.id}?key=${encodeURIComponent(config.dashboardKey)}`;
   const label = ahead > 1 ? `through ${dayLabel(nextDays[nextDays.length - 1] + 'T12:00:00-05:00')}` : `tomorrow (${dayLabel(nextDays[0] + 'T12:00:00-05:00')})`;
-  const row = i => `<li>${i.status === 'todo' ? '☐' : '☑'} <b>${esc(i.course)}</b>: <a href="${esc(i.link)}">${esc(i.title)}</a> <i>(${esc(i.status === 'todo' ? 'not turned in' : i.status)})</i></li>`;
+  const row = i => i.noTurnIn
+    ? `<li>• <b>${esc(i.course)}</b>: <a href="${esc(i.link)}">${esc(i.title)}</a> <i>(Blackbaud – check it's done)</i></li>`
+    : `<li>${i.status === 'todo' ? '☐' : '☑'} <b>${esc(i.course)}</b>: <a href="${esc(i.link)}">${esc(i.title)}</a> <i>(${esc(i.status === 'todo' ? 'not turned in' : i.status)})</i></li>`;
 
   if (etHour() >= 15 && out.lastTomorrowEmail !== today) {
     const html = `<h3>${esc(kid.name)} – homework due ${esc(label)}</h3>` +
-      (dueNext.length ? `<ul>${dueNext.map(row).join('')}</ul>` : '<p>Nothing due in Google Classroom.</p>') +
-      `<p>Anything not turned in by 8pm will trigger an alert.</p><p><a href="${dash}">Dashboard</a></p>`;
+      (dueNext.length ? `<ul>${dueNext.map(row).join('')}</ul>` : '<p>Nothing due in Google Classroom or Blackbaud.</p>') +
+      `<p>Anything not turned in to Google Classroom by 8pm will trigger an alert.</p><p><a href="${dash}">Dashboard</a></p>`;
     await email(kidAlertEmails(kid), `${kid.name}: ${dueNext.length} due ${label}`, html);
     out.lastTomorrowEmail = today;
   }
 
   if (etHour() >= 20 && out.lastEveningCheck !== today) {
-    const open = dueNext.filter(i => i.status === 'todo');
+    const open = dueNext.filter(i => i.status === 'todo' && !i.noTurnIn);
     if (open.length) {
       const html = `<p><b>${esc(kid.name)}</b> has ${open.length} assignment${open.length > 1 ? 's' : ''} due ${esc(label)} not turned in as of 8pm:</p><ul>${open.map(row).join('')}</ul><p><a href="${dash}">Dashboard</a></p>`;
       await email(kidAlertEmails(kid), `⚠️ ${kid.name}: ${open.length} not turned in, due ${label}`, html);
@@ -209,22 +228,3 @@ export async function runAll() {
 }
 
 export const kidState = kidId => load(`state-${kidId}`, null);
-
-// Watchdog: the grade check runs on the family computer at 5:47am and 2:47pm ET.
-// If a kid's grades didn't arrive from that run, alert (computer asleep, browser closed,
-// or the kid got signed out).
-export async function checkSkippedGradePulls(slotLabel) {
-  const since = Date.now() - 50 * 60000; // the run was ~45 minutes ago
-  for (const kid of config.kids) {
-    const bb = load(`bb-${kid.id}`, null);
-    if (bb && new Date(bb.at).getTime() >= since) continue;
-    const last = bb ? new Date(bb.at).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', minute: '2-digit' }) : 'never';
-    const where = kid.gradeBrowser || 'the family computer';
-    const text = `${kid.name}'s ${slotLabel} grade check was SKIPPED (last grades: ${last}). Check that the computer is awake with Chrome and the Claude app open, and that ${kid.name} is still signed into Blackbaud in ${where}.`;
-    await email(config.mail.parentTo, `⚠️ ${kid.name}: grade check skipped`, `<p>${esc(text)}</p>`);
-    await push(`${kid.name}: grade check skipped`, text);
-    const st = load(`state-${kid.id}`, {});
-    st.recentAlerts = [{ at: new Date().toISOString(), text }, ...(st.recentAlerts || [])].slice(0, 50);
-    save(`state-${kid.id}`, st);
-  }
-}

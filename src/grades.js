@@ -1,4 +1,4 @@
-// Blackbaud grades arrive from the daily Chrome check (POST /ingest/:kid), which reads
+// Blackbaud grades arrive from the School Tracker userscript (POST /ingest/:kid), which reads
 // the student's own signed-in Blackbaud session. This file normalizes that payload.
 
 // Wheeler rounds to the nearest whole percent (.5 and up rounds up) before assigning letters.
