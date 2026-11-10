@@ -30,7 +30,7 @@ Each kid has their own Google token, Blackbaud login, state file, alert log, and
 
 ## Daily emails and alerts (per kid, to `alertEmails`/`PARENT_EMAILS` plus the kid)
 - 6am: two-week homework plan and missing work.
-- 3pm: everything due the next school day (Fri/Sat look ahead through Monday) with turned-in status.
+- 4pm Eastern: everything due the next school day (Fri/Sat look ahead through Monday) with turned-in status.
 - 8pm: alert (email + phone push) for anything due the next school day that is not turned in.
 - Any run: alert if a kid's grades haven't synced in `GRADE_STALE_HOURS` (they need to open Blackbaud in Chrome).
 - Any run: notice (email + push) for assignments newly posted in Classroom or the Blackbaud feed; alerts for new missing work and new grades that round below `A_THRESHOLD`.
