@@ -141,7 +141,17 @@ app.post('/kid/luke/report-card', authed, express.json({limit:'16kb'}), (req, re
   save('report-card-luke', {term, marks, classroomAverage});
   res.sendStatus(204);
 });
-const kidView = k => ({ ...k, publishedReport: k.id === 'luke' ? load('report-card-luke', null) : null, review: k.id === 'luke' ? load('reviewed-homework-luke', null) : null, connected: isConnected(k.id), data: kidState(k.id) });
+app.post('/kid/luke/reviewed-scores', authed, express.json({limit:'64kb'}), (req, res) => {
+  const {checked,rows} = req.body || {};
+  if (typeof checked !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(checked) ||
+      !Number.isFinite(Date.parse(checked)) || !Array.isArray(rows) || !rows.length || rows.length > 500 ||
+      !rows.every(r => r && ['course','title','term'].every(k => typeof r[k] === 'string' && r[k].length <= 500) &&
+        r.course.trim() && r.title.trim() && Number.isFinite(r.earned) && Number.isFinite(r.possible) && r.possible > 0))
+    return res.sendStatus(400);
+  save('reviewed-scores-luke', {checked,rows});
+  res.sendStatus(204);
+});
+const kidView = k => ({ ...k, reviewedScores: k.id === 'luke' ? load('reviewed-scores-luke', null) : null, publishedReport: k.id === 'luke' ? load('report-card-luke', null) : null, review: k.id === 'luke' ? load('reviewed-homework-luke', null) : null, connected: isConnected(k.id), data: kidState(k.id) });
 
 app.get('/', authed, (_req, res) => {
   res.send(dashboardHtml(config.kids.map(kidView), config.aThreshold, null));
