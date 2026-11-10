@@ -4,7 +4,9 @@
 import { chromium } from 'playwright';
 import path from 'path';
 import { config, kidCreds, kidBlackbaudBase } from './config.js';
-import { save } from './store.js';
+import { save, load } from './store.js';
+import { email, push } from './notify.js';
+import { kidAlertEmails } from './config.js';
 import { normalizeBlackbaud } from './grades.js';
 
 function schoolYearLabel() {
@@ -26,10 +28,35 @@ async function signedIn(page, base) {
   }).catch(() => false);
 }
 
+// Blackbaud emails a 6-digit code the first time a new device signs in. Ask the kid to
+// type it into the tracker (/code/<id>), wait up to 15 minutes, then enter it. The
+// browser profile is kept on the volume so Blackbaud remembers this device afterwards.
+async function enterEmailedCode(page, kid) {
+  save(`code-${kid.id}`, { requestedAt: new Date().toISOString(), code: null });
+  const link = `${config.baseUrl}/code/${kid.id}?key=${encodeURIComponent(config.dashboardKey)}`;
+  const msg = `Blackbaud just emailed ${kid.name} a 6-digit code. Enter it here within 15 minutes so the grade checker can sign in: ${link}`;
+  await push(`${kid.name}: enter Blackbaud code`, msg, link);
+  await email(kidAlertEmails(kid), `${kid.name}: enter the Blackbaud code`, `<p>${msg.replace(link, `<a href="${link}">${link}</a>`)}</p>`);
+  const until = Date.now() + 15 * 60000;
+  while (Date.now() < until) {
+    const c = load(`code-${kid.id}`, {});
+    if (c.code) {
+      const box = page.locator('input[name*="code" i], input[autocomplete="one-time-code"], input[type="text"]:visible, input[type="tel"]:visible').first();
+      await box.fill(c.code);
+      await page.locator('button:has-text("Confirm")').first().click();
+      save(`code-${kid.id}`, { usedAt: new Date().toISOString(), code: null });
+      await sleep(5000);
+      return;
+    }
+    await sleep(5000);
+  }
+  throw new Error('Blackbaud code was not entered within 15 minutes');
+}
+
 // Walks whichever sign-in pages appear: Wheeler/Blackbaud, Blackbaud ID, Google.
-async function login(page, base, user, pass) {
+async function login(page, base, user, pass, kid) {
   await page.goto(`${base}/app`, { waitUntil: 'domcontentloaded' });
-  const deadline = Date.now() + 120000;
+  let deadline = Date.now() + 120000;
   const done = new Set();
   while (Date.now() < deadline) {
     await page.waitForLoadState('domcontentloaded').catch(() => {});
@@ -43,11 +70,14 @@ async function login(page, base, user, pass) {
         await page.fill('#Password', pass); await page.press('#Password', 'Enter');
       }
     } else if (url.includes('blackbaud.com')) {
-      const email = page.locator('input[type="email"], input[name="username"]').first();
-      if (await isVisible(page, 'input[type="password"]')) {
+      const emailBox = page.locator('input[type="email"], input[name="username"]').first();
+      if (await page.locator('text=Confirm your account').first().isVisible().catch(() => false)) {
+        await enterEmailedCode(page, kid);
+        deadline = Date.now() + 120000;
+      } else if (await isVisible(page, 'input[type="password"]')) {
         await page.fill('input[type="password"]', pass); await page.keyboard.press('Enter');
-      } else if (await email.isVisible().catch(() => false)) {
-        if (!(await email.inputValue().catch(() => ''))) await email.fill(user);
+      } else if (await emailBox.isVisible().catch(() => false)) {
+        if (!(await emailBox.inputValue().catch(() => ''))) await emailBox.fill(user);
         await page.locator('button:has-text("Continue")').first().click().catch(() => {});
       }
     } else if (url.includes('accounts.google.com')) {
@@ -78,10 +108,10 @@ export function hasCreds(kid) {
 export async function fetchBlackbaud(kid) {
   const { user, pass } = kidCreds(kid);
   const base = kidBlackbaudBase(kid);
-  const browser = await chromium.launch({ args: ['--no-sandbox'] });
-  const page = await (await browser.newContext()).newPage();
+  const browser = await chromium.launchPersistentContext(path.join(config.dataDir, `browser-${kid.id}`), { args: ['--no-sandbox'] });
+  const page = browser.pages()[0] || await browser.newPage();
   try {
-    await login(page, base, user, pass);
+    await login(page, base, user, pass, kid);
     const year = schoolYearLabel();
     const raw = await page.evaluate(async (year) => {
       const get = async (u) => {

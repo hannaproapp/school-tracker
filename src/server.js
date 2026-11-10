@@ -61,6 +61,21 @@ app.get('/kid/:kid/missing.json', authed, (req, res) => {
     .map(({ course, title, due, link }) => ({ course, title, due, link })));
 });
 
+app.get('/code/:kid', authed, (req, res) => {
+  const kid = config.kids.find(k => k.id === req.params.kid);
+  if (!kid) return res.status(404).send('Unknown kid');
+  res.send(page(`${kid.name}: Blackbaud code`, `<p>Enter the 6-digit code Blackbaud emailed to ${kid.name}'s school address.</p>
+    <form method="post"><input name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required autofocus style="font-size:28px;letter-spacing:6px;width:200px;padding:8px">
+    <button style="font-size:20px;padding:10px 18px;margin-left:8px">Submit</button></form>`));
+});
+app.post('/code/:kid', authed, express.urlencoded({ extended: false }), (req, res) => {
+  const kid = config.kids.find(k => k.id === req.params.kid);
+  const code = String(req.body.code || '').replace(/\D/g, '');
+  if (!kid || code.length !== 6) return res.status(400).send(page('Try again', '<p>That should be 6 digits.</p>'));
+  save(`code-${kid.id}`, { code, at: new Date().toISOString() });
+  res.send(page('Got it', `<p>Code sent. ${kid.name}'s grades will appear on the dashboard in about a minute.</p><p><a href="/kid/${kid.id}?key=${encodeURIComponent(config.dashboardKey)}">Back to dashboard</a></p>`));
+});
+
 app.get('/debug/:kid/screenshot', authed, (req, res) => {
   res.sendFile(`${config.dataDir}/bb-error-${req.params.kid}.png`, err => err && res.status(404).send('none'));
 });
