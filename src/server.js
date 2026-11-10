@@ -84,6 +84,16 @@ app.post('/kid/:kid/ical', authed, express.urlencoded({ extended: false }), asyn
   } catch (e) { msg = `${kid.name}: ${e.message}`; }
   res.send(setupPage(req, msg));
 });
+app.get('/debug/:kid/ical-raw', authed, async (req, res) => {
+  const kid = config.kids.find(k => k.id === req.params.kid);
+  const url = kid && feedUrl(kid);
+  if (!url) return res.status(404).send('no feed');
+  try {
+    const r = await fetch(url, { headers: { Accept: 'text/calendar' }, signal: AbortSignal.timeout(20000) });
+    const text = await r.text();
+    res.type('text/plain').send(`status ${r.status}, ${text.length} chars, ${(text.match(/BEGIN:VEVENT/g) || []).length} events\n\n${text.slice(0, 4000)}`);
+  } catch (e) { res.status(500).send(e.message); }
+});
 app.get('/debug/:kid/ical', authed, async (req, res) => {
   const kid = config.kids.find(k => k.id === req.params.kid);
   if (!kid) return res.status(404).send('Unknown kid');
