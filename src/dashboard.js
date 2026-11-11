@@ -61,7 +61,7 @@ function scoreDetails(g, checked) {
   </details></td></tr>`;
 }
 
-function kidSection(k, T) {
+function kidSection(k, T, refresh) {
   const d = k.data || {};
   const hw = (d.homework || []).filter(i => i.due && new Date(i.due) > Date.now() - 14 * 86400000)
     .sort((a, b) => new Date(a.due) - new Date(b.due));
@@ -75,6 +75,8 @@ function kidSection(k, T) {
   return `<section id="${esc(k.id)}" class="kid">
   <div class="head"><h2>${esc(k.name)} <span class="sub">Grade ${esc(k.grade || '')}</span></h2>
     <div class="meta">Homework updated ${esc(fmt(d.classroomAt)) || 'never'} · Grades updated ${esc(fmt(d.gradesAt)) || 'never'}</div></div>
+  ${refresh === 'failed' ? '<p role="status" class="banner err">Refresh did not finish for one or more students. Check the update times above.</p>' : ''}
+  ${refresh === 'done' ? `<p role="status" class="banner">Refresh checked ${esc(fmt(d.lastRun))}. ${!k.connected ? 'Google Classroom is disconnected, so new Classroom scores and homework could not be pulled.' : (d.errors || []).some(e => e.startsWith('Google Classroom:')) ? 'Google Classroom could not be refreshed. See the error below.' : 'Google Classroom was checked for scores and homework.'} ${d.gradesAt ? 'Latest Blackbaud grade data: ' + esc(fmt(d.gradesAt)) + '.' : 'No Blackbaud grade upload is available.'}</p>` : ''}
   ${!k.connected ? `<div class="banner">Google Classroom isn't connected. <a class="btn" href="/connect/${esc(k.id)}">Connect ${esc(k.name)}'s Google account</a></div>` : ''}
   ${(d.errors || []).filter(e => !e.includes('not connected')).map(e => `<div class="banner err">${esc(e)}</div>`).join('')}
 
@@ -114,7 +116,7 @@ function kidSection(k, T) {
   </section>`;
 }
 
-export function dashboardHtml(kids, T, only) {
+export function dashboardHtml(kids, T, only, refresh) {
   const shown = only ? kids.filter(k => k.id === only) : kids;
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>School Tracker</title><style>
@@ -137,7 +139,7 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px;bord
 @media(max-width:700px){.tiles{grid-template-columns:repeat(2,1fr)}}
 </style></head><body>
 <header><h1>School Tracker</h1><nav><a href="/" class="${only ? '' : 'on'}">All</a>${kids.map(k => `<a href="/kid/${esc(k.id)}" class="${only === k.id ? 'on' : ''}">${esc(k.name)}</a>`).join('')}</nav>
-<form method="post" action="${only ? `/run/${esc(only)}` : '/run'}"><button>Refresh ${only ? esc(shown[0]?.name || '') : 'all'} now</button></form></header>
-<main>${shown.map(k => kidSection(k, T)).join('') || '<p>No kids configured. Add them to kids.json.</p>'}
+<form method="post" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='Checking…'" action="${only ? `/run/${esc(only)}` : '/run'}"><button>Refresh ${only ? esc(shown[0]?.name || '') : 'all'} now</button></form></header>
+<main>${shown.map(k => kidSection(k, T, refresh)).join('') || '<p>No kids configured. Add them to kids.json.</p>'}
 <p class="muted">Grades round to the nearest whole percent (.5 rounds up). Alerts fire for anything that rounds below ${T}% and for missing work.</p></main></body></html>`;
 }
