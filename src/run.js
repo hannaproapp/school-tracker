@@ -233,23 +233,32 @@ async function runKid(kid, state, alertsSent) {
   return out;
 }
 
-const running = new Set();
+const running = new Map();
 export async function runKidById(kidId) {
   const kid = config.kids.find(k => k.id === kidId);
-  if (!kid || running.has(kid.id)) return;
-  running.add(kid.id);
-  try {
+  if (!kid) return false;
+  if (running.has(kid.id)) return running.get(kid.id);
+  const task = Promise.resolve().then(async () => {
     const prev = load(`state-${kid.id}`, {});
     const alertsSent = load(`alerts-${kid.id}`, {});
     const out = await runKid(kid, { [kid.id]: prev }, alertsSent);
     save(`state-${kid.id}`, out);
     save(`alerts-${kid.id}`, alertsSent);
-  } catch (e) { console.error(kid.id, e); }
-  finally { running.delete(kid.id); }
+    return true;
+  }).catch(error => {
+    console.error(kid.id, error);
+    return false;
+  }).finally(() => running.delete(kid.id));
+  running.set(kid.id, task);
+  return task;
 }
 
 export async function runAll() {
-  for (const kid of config.kids) await runKidById(kid.id);
+  let complete = true;
+  for (const kid of config.kids) {
+    if (!await runKidById(kid.id)) complete = false;
+  }
+  return complete;
 }
 
 export const kidState = kidId => load(`state-${kidId}`, null);
