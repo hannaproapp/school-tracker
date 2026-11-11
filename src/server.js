@@ -208,14 +208,14 @@ app.post('/kid/luke/reviewed-scores', authed, express.json({limit:'64kb'}), (req
 });
 const kidView = k => ({ ...k, reviewedScores: k.id === 'luke' ? load('reviewed-scores-luke', null) : null, publishedReport: k.id === 'luke' ? load('report-card-luke', null) : null, review: k.id === 'luke' ? load('reviewed-homework-luke', null) : null, connected: isConnected(k.id), data: kidState(k.id) });
 
-app.get('/', authed, (_req, res) => {
-  res.send(dashboardHtml(config.kids.map(kidView), config.aThreshold, null));
+app.get('/', authed, (req, res) => {
+  res.set('Cache-Control', 'no-store').send(dashboardHtml(config.kids.map(kidView), config.aThreshold, null, req.query.refresh));
 });
 
 app.get('/kid/:kid', authed, (req, res) => {
   const kid = config.kids.find(k => k.id === req.params.kid);
   if (!kid) return res.status(404).send('Unknown kid');
-  res.send(dashboardHtml(config.kids.map(kidView), config.aThreshold, kid.id));
+  res.set('Cache-Control', 'no-store').send(dashboardHtml(config.kids.map(kidView), config.aThreshold, kid.id, req.query.refresh));
 });
 
 app.get('/kid/:kid/missing.json', authed, (req, res) => {
@@ -272,16 +272,17 @@ app.get('/oauth/callback', async (req, res) => {
   } catch (e) { res.status(400).send(`Connection failed: ${e.message}`); }
 });
 
-app.post('/run', authed, (_req, res) => {
-  runAll().catch(console.error);
-  res.redirect(`/?key=${encodeURIComponent(config.dashboardKey)}`);
+app.post('/run', authed, async (_req, res) => {
+  const complete = await runAll();
+  res.redirect(303, '/?refresh=' + (complete ? 'done' : 'failed'));
 });
 
-app.post('/run/:kid', authed, (req, res) => {
-  runKidById(req.params.kid).catch(console.error);
-  res.redirect(`/kid/${encodeURIComponent(req.params.kid)}?key=${encodeURIComponent(config.dashboardKey)}`);
+app.post('/run/:kid', authed, async (req, res) => {
+  const kid = config.kids.find(k => k.id === req.params.kid);
+  if (!kid) return res.status(404).send('Unknown kid');
+  const complete = await runKidById(kid.id);
+  res.redirect(303, '/kid/' + encodeURIComponent(kid.id) + '?refresh=' + (complete ? 'done' : 'failed'));
 });
-
 
 app.listen(config.port, () => {
   console.log(`listening on ${config.port}; schedule "${config.cron}" ET`);
