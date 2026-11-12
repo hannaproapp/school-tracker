@@ -5,7 +5,8 @@
     "grade": "11",
     "email": [
       "leo.weinzweig@wheelergmail.org",
-      "MidnightWolfyButNew@gmail.com"
+      "MidnightWolfyButNew@gmail.com",
+      "weinzweig@gmail.com"
     ],
     "blackbaudUrl": "https://wheelerschool.myschoolapp.com",
     "alertEmails": [],
@@ -41,7 +42,8 @@
     "name": "Tyler",
     "grade": "9",
     "email": [
-      "tyler.weinzweig@wheelergmail.org"
+      "tyler.weinzweig@wheelergmail.org",
+      "weinzweig@gmail.com"
     ],
     "blackbaudUrl": "https://wheelerschool.myschoolapp.com",
     "alertEmails": [],
@@ -71,7 +73,8 @@
     "id": "luke",
     "name": "Luke",
     "email": [
-      "luke.weinzweig@wheelergmail.org"
+      "luke.weinzweig@wheelergmail.org",
+      "weinzweig@gmail.com"
     ],
     "blackbaudUrl": "https://wheelerschool.myschoolapp.com",
     "gradeBrowser": "Luke Chrome profile",
