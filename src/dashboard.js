@@ -15,7 +15,7 @@ function courseKey(name) {
   return key === 'math' ? 'mathematics' : key;
 }
 
-function scorecardGrades(k) {
+export function scorecardGrades(k) {
   const grades = (k.data?.grades || []).map(g => ({ ...g }));
   function course(name) {
     let g = grades.find(row => courseKey(row.course) === courseKey(name));
